@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Downloader</title>
+<style>
+:root{--bg:#10161d;--sf:#17202a;--edge:#263340;--ink:#e8eef4;--mute:#8797a8;--ac:#7aa2ff;--acink:#0b1220;--bad:#ff8a80;--ok:#7bd8a4;--p:0%}
+@media (prefers-color-scheme:light){:root{--bg:#f3f5f8;--sf:#fff;--edge:#d6dde6;--ink:#16202b;--mute:#5d6b7a;--ac:#2f5fd0;--acink:#fff;--bad:#c0392b;--ok:#1f8f57}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans",sans-serif}
+main{max-width:760px;margin:0 auto;padding:40px 20px 80px}
+header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:28px}
+h1{font-size:22px;margin:0;font-weight:650;letter-spacing:-.01em}
+#health{font-size:13px;color:var(--mute)}
+#health i{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--mute);margin-right:6px}
+#health.up i{background:var(--ok)}#health.down i{background:var(--bad)}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+.hero{display:flex;border:1px solid var(--edge);border-radius:14px;overflow:hidden;background:linear-gradient(90deg,color-mix(in srgb,var(--ac) 28%,var(--sf)) var(--p),var(--sf) var(--p));transition:background .25s linear}
+.hero input{flex:1;min-width:0;background:transparent;border:0;padding:20px 18px;font-size:17px}
+.hero input:focus-visible{outline-offset:-2px}
+.hero input::placeholder{color:var(--mute)}
+.go{background:var(--ac);color:var(--acink);border:0;padding:0 26px;font-weight:650}
+.go:disabled{opacity:.5;cursor:default}
+.opts{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:14px 0}
+.seg{display:flex;border:1px solid var(--edge);border-radius:8px;overflow:hidden}
+.seg button{background:transparent;border:0;padding:7px 12px;color:var(--mute)}
+.seg button[aria-pressed=true]{background:var(--sf);color:var(--ink);font-weight:600}
+select,.field{background:var(--sf);border:1px solid var(--edge);border-radius:8px;padding:7px 10px}
+label.chk{display:flex;gap:7px;align-items:center;color:var(--mute);cursor:pointer}
+details{border:1px solid var(--edge);border-radius:10px;background:var(--sf);margin-bottom:26px}
+summary{padding:10px 14px;cursor:pointer;color:var(--mute)}
+.set{padding:4px 14px 16px;display:grid;gap:12px}
+.row{display:flex;gap:8px}.row .field{flex:1;min-width:0}
+.set .lbl{font-size:13px;color:var(--mute);margin-bottom:4px}
+.checks{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px}
+.btn{background:transparent;border:1px solid var(--edge);border-radius:8px;padding:6px 11px}
+.btn:hover{border-color:var(--mute)}
+.btn.bad{color:var(--bad)}
+#pl{display:none;border:1px solid var(--edge);border-radius:10px;background:var(--sf);margin-bottom:22px}
+#pl.on{display:block}
+#pl h2{font-size:15px;margin:0;padding:12px 14px;border-bottom:1px solid var(--edge);display:flex;justify-content:space-between;align-items:center;gap:10px}
+#pl ul{list-style:none;margin:0;padding:6px 0;max-height:280px;overflow:auto}
+#pl li{padding:5px 14px}
+#pl li label{display:flex;gap:10px;cursor:pointer}
+#pl .d{color:var(--mute);margin-left:auto;white-space:nowrap}
+.items{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.it{display:grid;grid-template-columns:96px 1fr;gap:14px;padding:12px;border:1px solid var(--edge);border-radius:10px;background:var(--sf)}
+.th{width:96px;aspect-ratio:16/9;border-radius:6px;background:var(--edge);object-fit:cover}
+.tt{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.meta{font-size:13px;color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.meta.err{color:var(--bad)}
+.bar{height:4px;background:var(--edge);border-radius:2px;margin:8px 0 2px;overflow:hidden}
+.bar b{display:block;height:100%;background:var(--ac);width:0}
+.acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.acts a{text-decoration:none;color:inherit}
+.empty{color:var(--mute);padding:24px 0}
+.head{display:flex;justify-content:space-between;align-items:center;margin:0 0 10px}
+.head h2{font-size:15px;margin:0}
+@media (max-width:520px){.it{grid-template-columns:1fr}.th{width:100%}.go{padding:0 16px}}
+@media (prefers-reduced-motion:reduce){.hero{transition:none}}
+</style>
+</head>
+<body>
+<main>
+<header><h1>Downloader</h1><span id="health"><i></i><span>Checking backend</span></span></header>
+
+<form class="hero" id="f">
+  <input id="url" type="url" placeholder="Paste a video or playlist link" autocomplete="off" required aria-label="Link">
+  <button class="go" id="go" type="submit">Download</button>
+</form>
+
+<div class="opts">
+  <div class="seg" id="type" role="group" aria-label="Download type">
+    <button type="button" data-v="video_audio" aria-pressed="true">Video</button>
+    <button type="button" data-v="audio_only" aria-pressed="false">Audio</button>
+    <button type="button" data-v="video_only" aria-pressed="false">Video, no sound</button>
+  </div>
+  <select id="ext" aria-label="Format"></select>
+  <select id="q" aria-label="Audio bitrate" hidden>
+    <option value="128">128 kbps</option><option value="192" selected>192 kbps</option>
+    <option value="256">256 kbps</option><option value="320">320 kbps</option>
+  </select>
+  <label class="chk"><input type="checkbox" id="plist"> Playlist</label>
+</div>
+
+<details>
+  <summary>Settings</summary>
+  <div class="set">
+    <div><div class="lbl">Save to</div>
+      <div class="row"><input class="field" id="dir" placeholder="Default: the downloads folder next to server.js" aria-label="Download folder"><button type="button" class="btn" id="browse">Browse</button></div></div>
+    <div><div class="lbl">Backend address</div><input class="field" id="backend" style="width:100%" placeholder="http://localhost:8000" aria-label="Backend address"></div>
+    <div><div class="lbl">File name</div><input class="field" id="tpl" style="width:100%" aria-label="File name template">
+      <div class="meta" style="margin-top:4px">Tokens: %(title)s %(uploader)s %(upload_date)s %(resolution)s %(id)s %(ext)s</div></div>
+    <div class="checks">
+      <label class="chk"><input type="checkbox" id="organizeTypes"> Sort into Audio and Video folders</label>
+      <label class="chk"><input type="checkbox" id="organizeChannel"> Sort into channel folders</label>
+      <label class="chk"><input type="checkbox" id="extractSubtitles"> Save English subtitles</label>
+      <label class="chk"><input type="checkbox" id="downloadMetadata"> Save description and info file</label>
+      <label class="chk"><input type="checkbox" id="useCache"> Reuse files already downloaded</label>
+      <label class="chk"><input type="checkbox" id="autoBrowser"> Also download in my browser when finished</label>
+    </div>
+    <div><button type="button" class="btn" id="clr">Clear download cache</button> <span class="meta" id="clrmsg"></span></div>
+  </div>
+</details>
+
+<section id="pl" aria-live="polite"></section>
+
+<div class="head"><h2>Downloads</h2><button class="btn" id="clrlist" type="button">Clear list</button></div>
+<ul class="items" id="list"></ul>
+<div class="empty" id="empty">Nothing yet. Paste a link above to start.</div>
+</main>
+
+<script>
+const $=s=>document.querySelector(s);
+const HOSTED=/\.github\.io$/.test(location.hostname)||!location.protocol.startsWith('http');
+let API=((()=>{try{return localStorage.getItem('dl.backend')}catch{}})()||(HOSTED?'http://localhost:8000':location.origin)).replace(/\/+$/,'');
+const WSU=()=>API.replace(/^http/,'ws')+'/ws/download';
+const EXTS={video_audio:['mp4','webm','mkv'],video_only:['mp4','webm','mkv'],audio_only:['mp3','m4a','opus','flac','wav']};
+const DEF={useCache:true,organizeTypes:true,organizeChannel:false,extractSubtitles:false,downloadMetadata:false,filenameTemplate:'%(uploader)s - %(title)s.%(ext)s',downloadDirectory:'',autoBrowser:false};
+const load=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}};
+const save=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}};
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const post=(p,b)=>fetch(API+p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})}).then(r=>r.json());
+
+let settings={...DEF,...load('dl.settings',{})};
+let type='video_audio';
+let items=load('dl.history',[]).map(i=>({...i,status:'done'}));
+let running=false;
+
+/* ---------- settings ---------- */
+const flags=['organizeTypes','organizeChannel','extractSubtitles','downloadMetadata','useCache','autoBrowser'];
+flags.forEach(k=>{const el=$('#'+k);el.checked=!!settings[k];el.onchange=()=>{settings[k]=el.checked;save('dl.settings',settings)}});
+$('#tpl').value=settings.filenameTemplate;$('#tpl').onchange=e=>{settings.filenameTemplate=e.target.value;save('dl.settings',settings)};
+$('#dir').value=settings.downloadDirectory;$('#dir').onchange=e=>{settings.downloadDirectory=e.target.value.trim();save('dl.settings',settings)};
+$('#backend').value=API;$('#backend').onchange=e=>{API=e.target.value.trim().replace(/\/+$/,'')||API;try{localStorage.setItem('dl.backend',API)}catch{}health()};
+$('#browse').onclick=async()=>{
+  try{const r=await post('/api/browse_directory');
+    if(r.status==='ok'){settings.downloadDirectory=r.directory;$('#dir').value=r.directory;save('dl.settings',settings)}
+    else if(r.status==='error')alert(r.msg)}catch{alert('Can\u2019t reach the backend.')}
+};
+$('#clr').onclick=async()=>{try{const r=await post('/api/clear_cache');$('#clrmsg').textContent=r.status==='ok'?'Cache cleared.':r.msg}catch{$('#clrmsg').textContent='Can\u2019t reach the backend.'}};
+
+/* ---------- type / format ---------- */
+function setType(t){
+  type=t;
+  document.querySelectorAll('#type button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===t));
+  $('#ext').innerHTML=EXTS[t].map(e=>`<option>${e}</option>`).join('');
+  $('#q').hidden=t!=='audio_only';
+}
+document.querySelectorAll('#type button').forEach(b=>b.onclick=()=>setType(b.dataset.v));
+setType('video_audio');
+
+/* ---------- health ---------- */
+async function health(){
+  const h=$('#health'),t=h.querySelector('span');
+  try{const r=await fetch(API+'/api/health');if(!r.ok)throw 0;h.className='up';t.textContent='Backend connected'}
+  catch{h.className='down';t.textContent='Backend offline. Run npm start'}
+}
+health();setInterval(health,15000);
+
+/* ---------- save to device ---------- */
+// The backend stores http://localhost:8000/... links; point them at whatever address this page was loaded from.
+function fileUrl(u,dl){const x=new URL(u);return API+x.pathname+x.search+(dl?'&download=1':'')}
+function saveToDevice(it){
+  const a=document.createElement('a');
+  a.href=fileUrl(it.file.url,true);a.download='';
+  document.body.appendChild(a);a.click();a.remove();
+}
+
+/* ---------- queue ---------- */
+function persist(){save('dl.history',items.filter(i=>i.status==='done').slice(0,30).map(({id,url,title,file,type}) => ({id,url,title,file,type})))}
+function enqueue(url){
+  items.unshift({id:Date.now()+Math.random(),url,title:url,status:'queued',pct:0,msg:'Waiting',type,
+    ext:$('#ext').value,q:type==='audio_only'?$('#q').value:'best'});
+  render();pump();
+}
+async function pump(){
+  if(running)return;
+  const it=[...items].reverse().find(i=>i.status==='queued');
+  if(!it)return;
+  running=true;await run(it);running=false;pump();
+}
+function run(it){
+  return new Promise(done=>{
+    it.status='active';it.msg='Connecting';render();
+    let ws;
+    try{ws=new WebSocket(WSU())}catch{it.status='error';it.msg='Can\u2019t reach the backend. Start it with npm start.';render();return done()}
+    ws.onopen=()=>ws.send(JSON.stringify({url:it.url,type:it.type,ext:it.ext,quality:it.q,allowPlaylist:false,settings}));
+    ws.onmessage=e=>{
+      const m=JSON.parse(e.data);
+      if(m.status==='completed'){it.file=m.file;it.title=m.file.title;it.status='done';it.pct=100;persist();if(settings.autoBrowser)saveToDevice(it)}
+      else if(m.status==='error'){it.status='error';it.msg=m.msg}
+      else if(m.msg!==undefined){if(typeof m.percent==='number')it.pct=m.percent;if(m.status!=='connected')it.msg=m.msg}
+      render();
+    };
+    ws.onerror=()=>{if(it.status==='active'){it.status='error';it.msg='Can\u2019t reach the backend. Start it with npm start.'}render()};
+    ws.onclose=()=>{if(it.status==='active'){it.status='error';it.msg='The connection closed before the download finished.'}render();done()};
+  });
+}
+
+/* ---------- render ---------- */
+function render(){
+  const act=items.find(i=>i.status==='active');
+  $('#f').style.setProperty('--p',(act?act.pct:0)+'%');
+  $('#empty').style.display=items.length?'none':'block';
+  $('#list').innerHTML=items.map(i=>{
+    const thumb=i.file&&i.file.thumbnail?`<img class="th" src="${esc(i.file.thumbnail)}" alt="" loading="lazy">`:`<div class="th"></div>`;
+    let meta,acts='';
+    if(i.status==='done'){
+      meta=i.missing?'File was moved or deleted':esc((i.file.duration||'')+(i.type==='audio_only'?' \u00b7 audio':' \u00b7 video'));
+      acts=i.missing?`<button class="btn" data-a="rm" data-id="${i.id}">Remove</button>`:
+        `<button class="btn" data-a="save" data-id="${i.id}">Save to device</button>
+         <a class="btn" href="${esc(fileUrl(i.file.url))}" target="_blank" rel="noopener">Open file</a>
+         <button class="btn" data-a="show" data-id="${i.id}">Show in folder</button>
+         <button class="btn bad" data-a="del" data-id="${i.id}">Delete file</button>`;
+    }else if(i.status==='error'){
+      meta=`<span class="meta err">${esc(i.msg)}</span>`;
+      acts=`<button class="btn" data-a="retry" data-id="${i.id}">Try again</button><button class="btn" data-a="rm" data-id="${i.id}">Remove</button>`;
+    }else if(i.status==='queued'){
+      meta='Waiting for earlier downloads';acts=`<button class="btn" data-a="rm" data-id="${i.id}">Cancel</button>`;
+    }else meta=esc(i.msg);
+    const bar=i.status==='active'?`<div class="bar"><b style="width:${i.pct}%"></b></div>`:'';
+    return `<li class="it">${thumb}<div style="min-width:0"><div class="tt" title="${esc(i.title)}">${esc(i.title)}</div>
+      <div class="meta">${meta}</div>${bar}<div class="acts">${acts}</div></div></li>`;
+  }).join('');
+}
+$('#list').onclick=async e=>{
+  const b=e.target.closest('button[data-a]');if(!b)return;
+  const it=items.find(i=>String(i.id)===b.dataset.id);if(!it)return;
+  const a=b.dataset.a;
+  if(a==='rm'){items=items.filter(i=>i!==it);persist()}
+  else if(a==='save')saveToDevice(it);
+  else if(a==='retry'){it.status='queued';it.pct=0;it.msg='Waiting';pump()}
+  else if(a==='show'){try{await post('/api/open_location',{filepath:it.file.url})}catch{}}
+  else if(a==='del'){
+    if(!confirm('Delete this file from disk?'))return;
+    try{await post('/api/delete_file',{filepath:it.file.url});items=items.filter(i=>i!==it);persist()}catch{alert('Can\u2019t reach the backend.')}
+  }
+  render();
+};
+$('#clrlist').onclick=()=>{items=items.filter(i=>i.status==='active'||i.status==='queued');persist();render()};
+
+/* ---------- playlist ---------- */
+async function showPlaylist(url){
+  const box=$('#pl');box.className='on';box.innerHTML='<h2>Loading playlist\u2026</h2>';
+  try{
+    const r=await fetch(API+'/api/playlist_info',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})});
+    const j=await r.json();
+    if(!r.ok)throw new Error(j.detail||'Could not read this playlist');
+    const p=j.playlist;
+    box.innerHTML=`<h2><span>${esc(p.title)} <span class="meta">(${p.entryCount} items)</span></span>
+      <span><button class="btn" id="pall" type="button">Toggle all</button> <button class="btn" id="pgo" type="button">Download selected</button> <button class="btn" id="pclose" type="button">Close</button></span></h2>
+      <ul>${p.entries.map(e=>`<li><label><input type="checkbox" ${e.available?'checked':'disabled'} data-u="${esc(e.url||'')}"><span class="tt">${esc(e.title)}</span><span class="d">${esc(e.duration)}</span></label></li>`).join('')}</ul>`;
+    const boxes=()=>[...box.querySelectorAll('input[data-u]:not(:disabled)')];
+    $('#pall').onclick=()=>{const on=boxes().some(c=>!c.checked);boxes().forEach(c=>c.checked=on)};
+    $('#pclose').onclick=()=>{box.className='';box.innerHTML=''};
+    $('#pgo').onclick=()=>{[...boxes()].filter(c=>c.checked).reverse().forEach(c=>enqueue(c.dataset.u));box.className='';box.innerHTML=''};
+  }catch(err){box.innerHTML=`<h2><span class="meta err">${esc(err.message)}</span><button class="btn" id="pclose" type="button">Close</button></h2>`;$('#pclose').onclick=()=>{box.className='';box.innerHTML=''}}
+}
+
+$('#f').onsubmit=e=>{
+  e.preventDefault();
+  const url=$('#url').value.trim();if(!url)return;
+  if($('#plist').checked)showPlaylist(url);else enqueue(url);
+  $('#url').value='';
+};
+
+/* ---------- drop moved/deleted files from history ---------- */
+(async()=>{
+  for(const it of items){
+    try{const r=await post('/api/file_exists',{filepath:it.file.url});if(r.exists===false)it.missing=true}catch{break}
+  }
+  render();
+})();
+render();
+</script>
+</body>
+</html>

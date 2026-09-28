@@ -34,15 +34,6 @@ function normDir(raw) {
   if (!roots.has(a)) { roots.add(a); db.roots = [...roots]; saveDb(); }
   return a;
 }
-const OK = new Set(['%(title)s', '%(uploader)s', '%(upload_date)s', '%(resolution)s', '%(id)s', '%(ext)s']);
-function tpl(raw) {
-  const d = '%(uploader)s - %(title)s.%(ext)s';
-  if (typeof raw !== 'string' || !raw.trim()) return d;
-  let t = raw.trim().replace(/[\/\\]/g, '_');
-  for (const k of t.match(/%\([^)]+\)s/g) || []) if (!OK.has(k)) t = t.split(k).join('');
-  if (!t.includes('%(ext)s')) t += t.endsWith('.') ? '%(ext)s' : '.%(ext)s';
-  return t.replace(/\s{2,}/g, ' ').trim() || d;
-}
 const isUrl = u => typeof u === 'string' && /^https?:\/\//i.test(u);
 const MISSING = 'yt-dlp isn\u2019t installed. Install yt-dlp and ffmpeg, then restart the server.';
 
@@ -154,7 +145,7 @@ wss.on('connection', (ws, req) => {
     let o = dir.replace(/\\/g, '/') + '/';
     if (s.organizeTypes !== false) o += type === 'audio_only' ? 'Audio/' : 'Video/';
     if (s.organizeChannel) o += '%(uploader)s/';
-    a.push('-o', o + tpl(s.filenameTemplate), '--', url);
+    a.push('-o', o + '%(title)s.%(ext)s', '--', url);
 
     send({ status: 'starting', msg: 'Starting download' });
     const r = await new Promise((resolve, reject) => {

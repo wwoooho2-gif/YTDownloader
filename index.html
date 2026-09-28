@@ -3,74 +3,81 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DOWNLOAD THAT STUFF</title>
+<title>Download that stuff</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-:root{color-scheme:dark;--bg:#08121a;--sf:#0f1f2b;--sf2:#152a39;--edge:#21414f;--ink:#e6f1f5;--mute:#7f9bab;--ac:#2fd3c4;--acink:#03201d;--lamp:#ffb84d;--bad:#ff7a6b;--ok:#6fe3a0;--p:0%;--deep:#040a10}
+:root{color-scheme:dark;--bg:#040b12;--glow:#0e2a3a;--sf:#0d1d2a;--sf2:#122839;--edge:#24404f;--ink:#e6f1f5;--mute:#8aa0ad;--ac:#2dd4bf;--acd:#0f766e;--acink:#03231f;--gold:#f5b03a;--bad:#ff8a80;--ok:#7bd8a4;--p:0%}
 *{box-sizing:border-box}
-body{margin:0;min-height:100vh;color:var(--ink);font:15px/1.5 "Trebuchet MS","Segoe UI",system-ui,sans-serif;
-background:radial-gradient(900px 420px at 50% -120px,#123448,transparent 70%),linear-gradient(var(--bg),#050d13)}
+html{background:var(--bg)}
+body{margin:0;min-height:100vh;color:var(--ink);font:15px/1.5 Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:radial-gradient(900px 340px at 50% -80px,var(--glow),transparent 70%),linear-gradient(var(--bg),#030910)}
 main{max-width:760px;margin:0 auto;padding:36px 20px 80px}
-header{margin-bottom:26px}
-.top{display:flex;justify-content:space-between;align-items:center;gap:12px}
-h1{font-size:30px;margin:0;font-weight:900;letter-spacing:.04em;text-transform:uppercase;color:var(--ac);text-shadow:0 3px 0 var(--deep)}
-.tag{margin:2px 0 0;color:var(--lamp)}
-#health{font-size:13px;color:var(--mute);border:2px solid var(--edge);border-radius:99px;padding:3px 12px;background:var(--sf);white-space:nowrap}
+header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:26px}
+h1{font:400 34px/1.05 "Archivo Black",Inter,sans-serif;margin:0;text-transform:uppercase;color:var(--ac);text-shadow:0 3px 0 var(--acd),0 0 22px rgba(45,212,191,.25)}
+.tag{margin:8px 0 0;color:var(--gold);font-size:14px}
+#health{font-size:12.5px;color:var(--mute);border:1px solid var(--edge);background:var(--sf);border-radius:99px;padding:5px 12px;white-space:nowrap;margin-top:6px}
 #health i{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--mute);margin-right:6px}
 #health.up i{background:var(--ok)}#health.down i{background:var(--bad)}
 button,input,select{font:inherit;color:inherit}
 button{cursor:pointer}
-:focus-visible{outline:2px solid var(--lamp);outline-offset:2px}
-.hero{display:flex;border:2px solid var(--edge);border-radius:14px;overflow:hidden;box-shadow:0 5px 0 var(--deep);background:linear-gradient(90deg,color-mix(in srgb,var(--ac) 30%,var(--sf)) var(--p),var(--sf) var(--p));transition:background .25s linear}
+:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.hero{display:flex;border:2px solid var(--edge);border-radius:14px;overflow:hidden;background:linear-gradient(90deg,color-mix(in srgb,var(--ac) 30%,var(--sf)) var(--p),var(--sf) var(--p));transition:background .25s linear;box-shadow:0 8px 28px rgba(0,0,0,.35)}
+.hero:focus-within{border-color:var(--ac)}
 .hero input{flex:1;min-width:0;background:transparent;border:0;padding:20px 18px;font-size:17px}
-.hero input:focus-visible{outline-offset:-2px}
+.hero input:focus-visible{outline:none}
 .hero input::placeholder{color:var(--mute)}
-.go{background:var(--ac);color:var(--acink);border:0;padding:0 28px;font-weight:900;text-transform:uppercase;letter-spacing:.05em;box-shadow:inset 0 -4px 0 rgba(0,0,0,.25)}
+.go{background:var(--ac);color:var(--acink);border:0;padding:0 26px;font:400 14px "Archivo Black",Inter,sans-serif;text-transform:uppercase;letter-spacing:.05em;box-shadow:inset 0 -4px 0 var(--acd)}
 .go:hover:not(:disabled){filter:brightness(1.08)}
+.go:active:not(:disabled){box-shadow:inset 0 -1px 0 var(--acd);padding-top:3px}
 .go:disabled{opacity:.5;cursor:default}
-.opts{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:16px 0}
+.opts{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:14px 0}
 .seg{display:flex;border:2px solid var(--edge);border-radius:10px;overflow:hidden;background:var(--sf)}
 .seg button{background:transparent;border:0;padding:7px 13px;color:var(--mute);font-weight:600}
-.seg button[aria-pressed=true]{background:var(--ac);color:var(--acink)}
+.seg button:hover{color:var(--ink)}
+.seg button[aria-pressed=true]{background:var(--ac);color:var(--acink);font-weight:700}
 select,.field{background:var(--sf);border:2px solid var(--edge);border-radius:10px;padding:6px 10px}
+select:hover,.field:hover{border-color:#31556a}
+.field:focus-visible{outline:none;border-color:var(--ac)}
 label.chk{display:flex;gap:7px;align-items:center;color:var(--mute);cursor:pointer}
 input[type=checkbox]{accent-color:var(--ac)}
-details{border:2px solid var(--edge);border-radius:12px;background:var(--sf);margin-bottom:26px;box-shadow:0 4px 0 var(--deep)}
-summary{padding:10px 14px;cursor:pointer;color:var(--lamp);font-weight:700}
+details{border:2px solid var(--edge);border-radius:12px;background:var(--sf);margin-bottom:26px}
+summary{padding:10px 14px;cursor:pointer;color:var(--gold);font-weight:700;list-style:none}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"\25B8";display:inline-block;margin-right:8px;transition:transform .15s}
+details[open] summary::before{transform:rotate(90deg)}
 .set{padding:4px 14px 16px;display:grid;gap:12px}
 .row{display:flex;gap:8px}.row .field{flex:1;min-width:0}
 .set .lbl{font-size:13px;color:var(--mute);margin-bottom:4px}
 .checks{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px}
-.btn{background:var(--sf2);border:2px solid var(--edge);border-radius:9px;padding:5px 11px;font-weight:600;box-shadow:0 3px 0 var(--deep)}
-.btn:hover{border-color:var(--ac)}
-.btn:active{transform:translateY(2px);box-shadow:0 1px 0 var(--deep)}
-.btn.bad{color:var(--bad)}
+.btn{background:var(--sf2);border:2px solid var(--edge);border-radius:10px;padding:5px 11px;font-weight:600;text-decoration:none;color:var(--ink);display:inline-block;line-height:1.5}
+.btn:hover{border-color:var(--ac);color:var(--ac)}
+.btn.bad{color:var(--bad)}.btn.bad:hover{border-color:var(--bad)}
 #pl{display:none;border:2px solid var(--edge);border-radius:12px;background:var(--sf);margin-bottom:22px}
 #pl.on{display:block}
-#pl h2{font-size:15px;margin:0;padding:12px 14px;border-bottom:2px solid var(--edge);display:flex;justify-content:space-between;align-items:center;gap:10px}
+#pl h2{font-size:15px;margin:0;padding:12px 14px;border-bottom:2px solid var(--edge);display:flex;justify-content:space-between;align-items:center;gap:10px;color:var(--gold)}
 #pl ul{list-style:none;margin:0;padding:6px 0;max-height:280px;overflow:auto}
 #pl li{padding:5px 14px}
 #pl li label{display:flex;gap:10px;cursor:pointer}
 #pl .d{color:var(--mute);margin-left:auto;white-space:nowrap}
-.items{list-style:none;margin:0;padding:0;display:grid;gap:12px}
-.it{display:grid;grid-template-columns:96px 1fr;gap:14px;padding:12px;border:2px solid var(--edge);border-radius:12px;background:var(--sf);box-shadow:0 4px 0 var(--deep)}
-.th{width:96px;aspect-ratio:16/9;border-radius:7px;background:var(--edge);object-fit:cover}
-.tt{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.items{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.it{display:grid;grid-template-columns:96px 1fr;gap:14px;padding:12px;border:2px solid var(--edge);border-radius:12px;background:var(--sf)}
+.th{width:96px;aspect-ratio:16/9;border-radius:8px;background:var(--sf2);object-fit:cover}
+.tt{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .meta{font-size:13px;color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .meta.err{color:var(--bad)}
-.bar{height:8px;background:var(--deep);border-radius:4px;margin:8px 0 2px;overflow:hidden}
-.bar b{display:block;height:100%;background:linear-gradient(90deg,var(--ac),var(--lamp));width:0}
-.acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
-.acts a{text-decoration:none;color:inherit}
+.bar{height:6px;background:var(--sf2);border-radius:3px;margin:8px 0 2px;overflow:hidden}
+.bar b{display:block;height:100%;background:var(--ac);width:0}
+.acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 .empty{color:var(--mute);padding:24px 0}
-.head{display:flex;justify-content:space-between;align-items:center;margin:0 0 12px}
-.head h2{font-size:16px;margin:0;color:var(--lamp)}
-@media (max-width:520px){.it{grid-template-columns:1fr}.th{width:100%}.go{padding:0 16px}h1{font-size:24px}}
-@media (prefers-reduced-motion:reduce){.hero{transition:none}.btn:active{transform:none}}
+.head{display:flex;justify-content:space-between;align-items:center;margin:0 0 10px}
+.head h2{font-size:15px;margin:0;color:var(--gold)}
+@media (max-width:520px){h1{font-size:26px}.it{grid-template-columns:1fr}.th{width:100%}.go{padding:0 16px}}
+@media (prefers-reduced-motion:reduce){.hero,summary::before{transition:none}}
 </style>
 </head>
 <body>
 <main>
-<header><div class="top"><h1>Download that stuff</h1><span id="health"><i></i><span>Checking backend</span></span></div><p class="tag">reel em in down at the docks</p></header>
+<header><div><h1>Download that stuff</h1><p class="tag">reel em in down at the docks</p></div><span id="health"><i></i><span>Checking backend</span></span></header>
 
 <form class="hero" id="f">
   <input id="url" type="url" placeholder="Paste a video or playlist link" autocomplete="off" required aria-label="Link">

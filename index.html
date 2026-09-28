@@ -77,7 +77,7 @@ details[open] summary::before{transform:rotate(90deg)}
 </head>
 <body>
 <main>
-<header><div><h1>Download that stuff</h1><p class="tag">reel em in down at the docks</p></div><span id="health"><i></i><span>Checking backend</span></span></header>
+<header><div><h1>Download that stuff</h1></div><span id="health"><i></i><span>Checking backend</span></span></header>
 
 <form class="hero" id="f">
   <input id="url" type="url" placeholder="Paste a video or playlist link" autocomplete="off" required aria-label="Link">
@@ -128,7 +128,7 @@ const $=s=>document.querySelector(s);
 const HOSTED=/\.github\.io$/.test(location.hostname)||!location.protocol.startsWith('http');
 let API=((()=>{try{return localStorage.getItem('dl.backend')}catch{}})()||(HOSTED?'http://localhost:8000':location.origin)).replace(/\/+$/,'');
 const WSU=()=>API.replace(/^http/,'ws')+'/ws/download';
-const EXTS={video_audio:['mp4','webm','mkv'],video_only:['mp4','webm','mkv'],audio_only:['mp3','m4a','opus','flac','wav']};
+const EXTS={video_audio:['mp4','webm','mkv'],video_only:['mp4','webm','mkv'],audio_only:['mp3','m4a','ogg','opus','flac','wav']};
 const DEF={useCache:true,organizeTypes:true,organizeChannel:false,extractSubtitles:false,downloadMetadata:false,downloadDirectory:'',autoBrowser:false};
 const load=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}};
 const save=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}};

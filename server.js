@@ -1,12 +1,40 @@
 'use strict';
-// Node.js downloader backend. Needs yt-dlp and ffmpeg installed and on PATH.
+
+/* ---------- installer: `node server.js --install` (runs after npm install) ---------- */
+if (process.argv.includes('--install')) {
+  const fs = require('fs'), path = require('path'); // own requires: must work before dependencies are loaded
+  (async () => {
+    const { platform, arch } = process;
+    const asset = platform === 'win32' ? (arch === 'ia32' ? 'yt-dlp_x86.exe' : 'yt-dlp.exe')
+      : platform === 'darwin' ? 'yt-dlp_macos'
+      : platform === 'linux' ? ({ x64: 'yt-dlp_linux', arm64: 'yt-dlp_linux_aarch64', arm: 'yt-dlp_linux_armv7l' })[arch] : null;
+    const dest = path.join(__dirname, 'bin', platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp');
+    if (!asset) return console.warn(`[install] No prebuilt yt-dlp for ${platform}/${arch}. Install it manually and set YTDLP=/path/to/yt-dlp.`);
+    if (fs.existsSync(dest)) return console.log('[install] yt-dlp already present, skipping.');
+    console.log(`[install] Downloading yt-dlp (${asset})...`);
+    const res = await fetch(`https://github.com/yt-dlp/yt-dlp/releases/latest/download/${asset}`, { redirect: 'follow' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.writeFileSync(dest + '.part', Buffer.from(await res.arrayBuffer()), { mode: 0o755 });
+    fs.chmodSync(dest + '.part', 0o755); fs.renameSync(dest + '.part', dest);
+    console.log('[install] yt-dlp installed to', dest);
+  })().catch(e => console.warn(`[install] Could not download yt-dlp (${e.message}). Retry with: npm run install-tools`))
+    .finally(() => process.exit(0));
+  return; // don't start the server
+}
+// Node.js downloader backend. `npm install` runs `node server.js --install`, which downloads yt-dlp into ./bin;
+// ffmpeg comes from the ffmpeg-static package. YTDLP / FFMPEG env vars or copies on PATH still work.
 const express = require('express'), http = require('http'), { WebSocketServer } = require('ws');
 const fs = require('fs'), os = require('os'), path = require('path');
 const { spawn, execFile } = require('child_process');
 
 const HOST = process.env.HOST || '127.0.0.1', PORT = +process.env.PORT || 8000;
 const ORIGIN = process.env.ALLOW_ORIGIN || '*';           // e.g. https://you.github.io
-const YTDLP = process.env.YTDLP || 'yt-dlp';
+const LOCAL_YTDLP = path.join(__dirname, 'bin', process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp');
+const YTDLP = process.env.YTDLP || (fs.existsSync(LOCAL_YTDLP) ? LOCAL_YTDLP : 'yt-dlp');
+let FFMPEG = process.env.FFMPEG || '';
+if (!FFMPEG) { try { FFMPEG = require('ffmpeg-static') || ''; } catch {} }
+if (!FFMPEG || !fs.existsSync(FFMPEG)) FFMPEG = 'ffmpeg';
 const CONNS = Math.min(16, Math.max(1, +process.env.CONNECTIONS || 16)); // parallel connections per download
 const EMBED_VIDEO = process.env.EMBED_VIDEO === '1'; // thumbnail/tag embedding rewrites the whole video file: off = much faster
 const USE_ARIA2 = process.env.ARIA2 !== '0';                            // auto-used when aria2c is installed
@@ -55,7 +83,7 @@ function normDir(raw) {
   return a;
 }
 const isUrl = u => { try { return ['http:', 'https:'].includes(new URL(u).protocol); } catch { return false; } };
-const MISSING = 'yt-dlp isn\u2019t installed. Install yt-dlp and ffmpeg, then restart the server.';
+const MISSING = 'yt-dlp isn\u2019t installed. Run "npm run install-tools" (or set YTDLP=/path/to/yt-dlp), then restart the server.';
 const esc = s => s.replace(/%/g, '%%'); // literal % in a folder name must not act as a yt-dlp template field
 const fmtSpeed = v => (Number.isFinite(+v) && +v > 0 ? (+v / 1048576).toFixed(2) + ' MiB/s' : '');
 const fmtEta = v => { const n = +v; if (!Number.isFinite(n)) return '?'; return n >= 60 ? `${Math.floor(n / 60)}m ${Math.round(n % 60)}s` : `${Math.round(n)}s`; };
@@ -137,6 +165,7 @@ app.use((err, q, res, n) => res.status(err.status || 500).json({ detail: err.typ
 /* ---------- yt-dlp argument builder ---------- */
 function buildArgs({ url, type, ext, q, s, dir, recode }) {
   const a = ['--quiet', '--no-simulate', '--progress', '--newline', '--no-playlist', '--no-warnings',
+    ...(FFMPEG !== 'ffmpeg' ? ['--ffmpeg-location', FFMPEG] : []),
     '-N', String(CONNS), '--http-chunk-size', '10M', '--buffer-size', '256K', '--no-mtime', '--retries', '5', '--fragment-retries', '5',
     '--progress-template', 'download:PROG|%(progress.downloaded_bytes)s|%(progress.total_bytes)s|%(progress.total_bytes_estimate)s|%(progress.speed)s|%(progress.eta)s',
     '--print', 'after_move:DONE\t%(filepath)s\t%(title)s\t%(thumbnail)s\t%(duration_string)s'];
@@ -257,10 +286,10 @@ wss.on('connection', (ws, req) => {
 /* ---------- startup / shutdown ---------- */
 const tools = { ytdlp: false, ffmpeg: false, aria2c: false };
 const probe = (cmd, args, key) => execFile(cmd, args, { timeout: 5000 }, e => { tools[key] = !e; });
-probe(YTDLP, ['--version'], 'ytdlp'); probe('ffmpeg', ['-version'], 'ffmpeg'); probe('aria2c', ['--version'], 'aria2c');
+probe(YTDLP, ['--version'], 'ytdlp'); probe(FFMPEG, ['-version'], 'ffmpeg'); probe('aria2c', ['--version'], 'aria2c');
 setTimeout(() => {
-  if (!tools.ytdlp) console.warn('! yt-dlp not found on PATH (set YTDLP=/path/to/yt-dlp)');
-  if (!tools.ffmpeg) console.warn('! ffmpeg not found on PATH: merging and audio conversion will fail');
+  if (!tools.ytdlp) console.warn('! yt-dlp not found (run: npm run install-tools, or set YTDLP=/path/to/yt-dlp)');
+  if (!tools.ffmpeg) console.warn('! ffmpeg not found (run npm install, or set FFMPEG=/path/to/ffmpeg): merging and audio conversion will fail');
 }, 1500).unref();
 
 const shutdown = () => { flushDb(); children.forEach(c => c.kill()); process.exit(0); };

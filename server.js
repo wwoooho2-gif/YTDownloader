@@ -40,6 +40,7 @@ const express = require('express'), http = require('http'), { WebSocketServer } 
 const fs = require('fs'), os = require('os'), path = require('path');
 const fsp = fs.promises;
 const { spawn, execFile } = require('child_process');
+const { pipeline } = require('stream/promises');
 
 const HOST = process.env.HOST || '127.0.0.1', PORT = +process.env.PORT || 8000;
 const ORIGIN = process.env.ALLOW_ORIGIN || '*';           // e.g. https://you.github.io
@@ -220,6 +221,123 @@ app.post('/api/playlist_info', (req, res) => {
   });
   res.on('close', () => { if (!res.writableEnded) { gone = true; child.kill(); } }); // client gave up: stop yt-dlp
 });
+/* ---------- editor: trim / cut with ffmpeg ---------- */
+const fileUrlFor = p => `http://localhost:${PORT}/api/file?path=${encodeURIComponent(p)}`;
+const NOFF = 'ffmpeg isn\u2019t installed. Run "npm install" (or set FFMPEG=/path/to/ffmpeg), then restart the server.';
+const fmtDur = s => { s = Math.round(s); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(x).padStart(2, '0'); };
+
+// A file picked in the editor is streamed into its own temp folder (wiped on exit, like browser-only downloads).
+app.post('/api/edit_upload', ah(async (req, res) => {
+  const ext = String(req.query.ext || '').toLowerCase();
+  if (!/^[a-z0-9]{2,5}$/.test(ext)) return res.status(400).json({ detail: 'Unsupported file type' });
+  const dir = await fsp.mkdtemp(path.join(TMP, 'edit-')), fp = path.join(dir, 'source.' + ext);
+  try { await pipeline(req, fs.createWriteStream(fp)); }
+  catch (e) { rmJob(dir); if (!res.headersSent) res.status(400).json({ detail: 'Upload interrupted' }); return; }
+  ephemeral.set(fp, { dir, t: Date.now() });
+  res.json({ status: 'ok', url: fileUrlFor(fp) });
+}));
+
+const probeMedia = p => new Promise((resolve, reject) => execFile(FFMPEG, ['-hide_banner', '-i', p], { timeout: 20000, maxBuffer: 1 << 24 }, (err, out, se) => {
+  if (err && err.code === 'ENOENT') return reject(new Error(NOFF));
+  const lines = String(se).split('\n').filter(l => /Stream #/.test(l));
+  resolve({ video: lines.some(l => /Video:/.test(l) && !/attached pic/.test(l)), audio: lines.some(l => /Audio:/.test(l)) }); // cover art doesn't count as video
+}));
+
+function encArgs(ext, video) { // re-encode settings for "precise" mode, picked by output container
+  if (video) return ext === 'webm'
+    ? ['-c:v', 'libvpx-vp9', '-crf', '30', '-b:v', '0', '-deadline', 'realtime', '-cpu-used', '5', '-row-mt', '1', '-c:a', 'libopus', '-b:a', '160k']
+    : ['-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k', ...(['mp4', 'm4v', 'mov'].includes(ext) ? ['-movflags', '+faststart'] : [])];
+  const aac = ['-c:a', 'aac', '-b:a', '192k'], opus = ['-c:a', 'libopus', '-b:a', '160k'], vorbis = ['-c:a', 'libvorbis', '-q:a', '5'];
+  return ({ mp3: ['-c:a', 'libmp3lame', '-q:a', '2'], m4a: aac, aac, ogg: vorbis, oga: vorbis, opus, webm: opus, flac: ['-c:a', 'flac'], wav: ['-c:a', 'pcm_s16le'] })[ext] || aac;
+}
+
+function ffrun(args, onT, reg) { // one ffmpeg run; onT(seconds of output produced so far) drives the progress bar
+  return new Promise((resolve, reject) => {
+    const c = spawn(FFMPEG, ['-y', '-nostdin', '-hide_banner', '-loglevel', 'error', '-nostats', '-progress', 'pipe:1', ...args], { detached: process.platform !== 'win32' });
+    reg(c); children.add(c);
+    let err = '', buf = '';
+    c.on('error', e => { children.delete(c); reject(new Error(e.code === 'ENOENT' ? NOFF : e.message)); });
+    c.stderr.setEncoding('utf8'); c.stdout.setEncoding('utf8');
+    c.stderr.on('data', d => { err = (err + d).slice(-4000); });
+    c.stdout.on('data', d => { const ls = (buf + d).split('\n'); buf = ls.pop(); for (const l of ls) { const m = /^out_time_(?:us|ms)=(\d+)/.exec(l); if (m) onT(+m[1] / 1e6); } });
+    c.on('close', code => { children.delete(c); if (code === 0) return resolve(); const l = err.trim().split('\n').filter(Boolean); reject(new Error(l.pop() || `ffmpeg exited with code ${code}`)); });
+  });
+}
+
+// body: { filepath, name, mode: 'precise'|'fast', segments: [[start, end], ...] }  (the parts to KEEP, in order)
+// Streams newline-delimited JSON progress; the finished file is saved next to the source (or handed to the browser for uploads).
+app.post('/api/edit', ah(async (req, res) => {
+  const b = req.body || {};
+  const src = localPath(b.filepath);
+  if (!src || !(await isFile(src))) return res.status(404).json({ detail: 'That file is gone. Open it again.' });
+  const segs = b.segments;
+  if (!Array.isArray(segs) || !segs.length || segs.length > 500 || !segs.every(x => Array.isArray(x) && x.length === 2 && x.every(Number.isFinite) && x[0] >= 0 && x[1] - x[0] > 0.01 && x[1] < 1e6))
+    return res.status(400).json({ detail: 'Bad selection.' });
+  const fast = b.mode === 'fast';
+  res.set({ 'Content-Type': 'application/x-ndjson', 'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no' });
+  res.flushHeaders();
+  const send = o => { if (!res.destroyed && !res.writableEnded) res.write(JSON.stringify(o) + '\n'); };
+  let cur, gone = false, slot = false, work = null, madeDir = null, out = null, ok = false;
+  res.on('close', () => { if (!res.writableEnded) { gone = true; cur && killTree(cur); } }); // client cancelled: stop ffmpeg
+  const run = (args, onT) => ffrun(args, onT, c => { cur = c; });
+  try {
+    if (active >= MAX_JOBS) send({ status: 'working', percent: 0, msg: 'Waiting for other jobs' });
+    await acquire(); slot = true;
+    if (gone) return;
+    const e0 = ephemeral.get(src); if (e0) e0.t = Date.now(); // keep an uploaded source alive while it is being edited
+    send({ status: 'working', percent: 0, msg: 'Reading file' });
+    const info = await probeMedia(src);
+    if (!info.video && !info.audio) throw new Error('No audio or video found in that file.');
+    const ext = (path.extname(src).slice(1) || 'mp4').toLowerCase();
+    const inTmp = within(real(TMP), real(src));
+    let outDir = path.dirname(src);
+    if (inTmp) outDir = madeDir = await fsp.mkdtemp(path.join(TMP, 'edit-'));
+    const stem = (inTmp ? folderName(b.name || 'Edited') : path.parse(src).name).replace(/ \(edited(?: \d+)?\)$/, '').slice(0, 150);
+    for (let n = 1; ; n++) { out = path.join(outDir, `${stem} (edited${n > 1 ? ' ' + n : ''}).${ext}`); if (!fs.existsSync(out)) break; }
+    const total = segs.reduce((t, [s, e]) => t + e - s, 0), F = n => n.toFixed(3);
+
+    if (!fast) { // precise: trim every part and join them in one re-encode, so cuts land exactly where they were set
+      const v = info.video, a = info.audio, flt = [];
+      segs.forEach(([s, e], i) => {
+        if (v) flt.push(`[0:v:0]trim=start=${F(s)}:end=${F(e)},setpts=PTS-STARTPTS[v${i}]`);
+        if (a) flt.push(`[0:a:0]atrim=start=${F(s)}:end=${F(e)},asetpts=PTS-STARTPTS[a${i}]`);
+      });
+      flt.push(segs.map((_, i) => (v ? `[v${i}]` : '') + (a ? `[a${i}]` : '')).join('') + `concat=n=${segs.length}:v=${+v}:a=${+a}${v ? '[vc]' : ''}${a ? '[a]' : ''}`);
+      if (v) flt.push('[vc]scale=trunc(iw/2)*2:trunc(ih/2)*2[v]'); // x264 needs even dimensions
+      await run(['-i', src, '-filter_complex', flt.join(';'), ...(v ? ['-map', '[v]'] : []), ...(a ? ['-map', '[a]'] : []), ...encArgs(ext, v), out],
+        t => send({ status: 'working', percent: Math.min(99, t / total * 100), msg: 'Cutting' }));
+    } else { // fast: copy each part without re-encoding, then join; cuts snap to the nearest keyframe
+      work = await fsp.mkdtemp(path.join(TMP, 'work-'));
+      const maps = info.video ? ['-map', '0:v?', '-map', '0:a?'] : ['-map', '0:a'], parts = [];
+      let done = 0;
+      for (let i = 0; i < segs.length; i++) {
+        const [s, e] = segs[i], pf = path.join(work, `p${i}.${ext}`), d = e - s, base = done;
+        await run(['-ss', F(s), '-i', src, '-t', F(d), ...maps, '-c', 'copy', '-avoid_negative_ts', 'make_zero', pf],
+          t => send({ status: 'working', percent: Math.min(95, (base + Math.min(t, d)) / total * 95), msg: 'Cutting' }));
+        done += d; parts.push(pf);
+      }
+      if (parts.length === 1) await fsp.copyFile(parts[0], out);
+      else {
+        const list = path.join(work, 'list.txt');
+        await fsp.writeFile(list, parts.map(p => `file '${p.replace(/\\/g, '/').replace(/'/g, "'\\''")}'`).join('\n'));
+        send({ status: 'working', percent: 96, msg: 'Joining parts' });
+        await run(['-f', 'concat', '-safe', '0', '-i', list, '-c', 'copy', out], () => {});
+      }
+    }
+    const fp = path.resolve(out);
+    if (inTmp) ephemeral.set(fp, { dir: madeDir, t: Date.now() });
+    ok = true;
+    send({ status: 'completed', path: fp, browserOnly: inTmp,
+      file: { title: path.parse(fp).name, thumbnail: '', duration: fmtDur(total), type: info.video ? 'video_audio' : 'audio_only', url: fileUrlFor(fp) } });
+  } catch (e) { if (!gone) send({ status: 'error', msg: e.message }); }
+  finally {
+    if (work) rmJob(work);
+    if (!ok) { if (madeDir) rmJob(madeDir); else if (out) fsp.rm(out, { force: true }).catch(() => {}); }
+    if (slot) release();
+    if (!res.writableEnded) res.end();
+  }
+}));
+
 app.use((err, q, res, n) => res.status(err.status || 500).json({ detail: err.type === 'entity.parse.failed' ? 'Bad JSON' : 'Server error' }));
 
 /* ---------- yt-dlp argument builder ---------- */
@@ -232,8 +350,9 @@ function buildArgs({ url, type, ext, q, s, dir, recode }) {
   if (USE_ARIA2 && tools.aria2c) // multi-connection downloader for plain HTTP streams; fragmented HLS/DASH stays native
     a.push('--downloader', 'aria2c', '--downloader', 'dash,m3u8:native', '--downloader-args', `aria2c:-x ${CONNS} -s ${CONNS} -k 1M --min-split-size=1M --file-allocation=none`);
   if (type === 'audio_only') {
-    a.push('-f', 'bestaudio/best', '-x', '--audio-format', ext === 'ogg' ? 'vorbis' : ext); // yt-dlp calls .ogg audio "vorbis"
-    if (!['wav', 'flac'].includes(ext)) a.push('--audio-quality', q);
+    // "fast": grab a small (<=128 kbps) stream when one exists and skip the cover-art download/embed pass
+    a.push('-f', q === 'fast' ? 'bestaudio[abr<=130]/bestaudio/best' : 'bestaudio/best', '-x', '--audio-format', ext === 'ogg' ? 'vorbis' : ext); // yt-dlp calls .ogg audio "vorbis"
+    if (!['wav', 'flac'].includes(ext)) a.push('--audio-quality', q === 'fast' ? '128' : q);
   } else {
     const f = type === 'video_only' ? `bestvideo[ext=${ext}]/bestvideo/best`
       : ext === 'webm' ? 'bestvideo[ext=webm]+bestaudio[ext=webm]/bestvideo[ext=webm]+bestaudio/best[ext=webm]/best'
@@ -243,7 +362,7 @@ function buildArgs({ url, type, ext, q, s, dir, recode }) {
   }
   // Audio files are small, so tagging them is cheap. Videos skip the extra full-file ffmpeg passes unless EMBED_VIDEO=1.
   if (type === 'audio_only' || EMBED_VIDEO) a.push('--embed-metadata');
-  if (type === 'audio_only' ? ['mp3', 'm4a', 'ogg', 'flac'].includes(ext) : EMBED_VIDEO && ['mp4', 'mkv', 'mov', 'm4v'].includes(ext)) a.push('--write-thumbnail', '--embed-thumbnail');
+  if (type === 'audio_only' ? q !== 'fast' && ['mp3', 'm4a', 'ogg', 'flac'].includes(ext) : EMBED_VIDEO && ['mp4', 'mkv', 'mov', 'm4v'].includes(ext)) a.push('--write-thumbnail', '--embed-thumbnail');
   if (s.extractSubtitles) a.push('--write-subs', '--write-auto-subs', '--sub-langs', 'en');
   if (s.downloadMetadata) a.push('--write-description', '--write-info-json');
   let o = esc(dir.replace(/\\/g, '/')) + '/';
@@ -255,6 +374,7 @@ function buildArgs({ url, type, ext, q, s, dir, recode }) {
 
 /* ---------- WebSocket download ---------- */
 const server = http.createServer(app);
+server.requestTimeout = 0; // editor uploads of big files can take longer than Node's default 5 minute limit
 const wss = new WebSocketServer({ server, path: '/ws/download', maxPayload: 64 * 1024, perMessageDeflate: false });
 const children = new Set();
 const killTree = c => { // kill yt-dlp and whatever it spawned (ffmpeg/aria2c) so a cancelled download stops using CPU
@@ -315,7 +435,7 @@ wss.on('connection', (ws, req) => {
     if (!isUrl(url)) throw new Error('That doesn\u2019t look like a link.');
     if (!['video_audio', 'video_only', 'audio_only'].includes(type)) throw new Error('Bad download type.');
     const ext = String(req.ext || (type === 'audio_only' ? 'mp3' : 'mp4')).toLowerCase(), q = String(req.quality || '192');
-    if (!/^[a-z0-9]{2,5}$/.test(ext) || !/^(\d+|best)$/.test(q)) throw new Error('Bad format options.');
+    if (!/^[a-z0-9]{2,5}$/.test(ext) || !/^(\d+|best|fast)$/.test(q)) throw new Error('Bad format options.');
     const toBrowser = !!s.autoBrowser; // "browser only": stage in a private temp folder, hand the file to the browser, then delete it
     const gid = group && /^[\w-]{6,64}$/.test(String(group.id)) ? String(group.id) : null; // set when this download is part of a playlist
     const base0 = toBrowser ? TMP : normDir(s.downloadDirectory);

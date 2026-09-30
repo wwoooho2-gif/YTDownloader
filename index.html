@@ -129,16 +129,17 @@ const HOSTED=/\.github\.io$/.test(location.hostname)||!location.protocol.startsW
 let API=((()=>{try{return localStorage.getItem('dl.backend')}catch{}})()||(HOSTED?'http://localhost:8000':location.origin)).replace(/\/+$/,'');
 const WSU=()=>API.replace(/^http/,'ws')+'/ws/download';
 const EXTS={video_audio:['mp4','webm','mkv'],video_only:['mp4','webm','mkv'],audio_only:['mp3','m4a','ogg','opus','flac','wav']};
-const DEF={useCache:true,organizeTypes:true,organizeChannel:false,extractSubtitles:false,downloadMetadata:false,downloadDirectory:'',autoBrowser:false};
+const DEF={useCache:true,organizeTypes:false,organizeChannel:false,extractSubtitles:false,downloadMetadata:false,downloadDirectory:'',autoBrowser:true};
 const load=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}};
 const save=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const post=(p,b)=>fetch(API+p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})}).then(r=>r.json());
 
 let settings={...DEF,...load('dl.settings',{})};
+if(load('dl.settingsV',1)<3){Object.assign(settings,{organizeTypes:false,organizeChannel:false,extractSubtitles:false,downloadMetadata:false,useCache:true,autoBrowser:true});save('dl.settings',settings);save('dl.settingsV',3)} // one-time: apply the new defaults over older saved values (download folder is kept)
 let type='video_audio';
 let items=load('dl.history',[]).map(i=>({...i,status:'done'}));
-let running=false;
+const PARALLEL=3;let running=0; // matches the server's default MAX_JOBS
 
 /* ---------- settings ---------- */
 const flags=['organizeTypes','organizeChannel','extractSubtitles','downloadMetadata','useCache','autoBrowser'];
@@ -179,28 +180,46 @@ function saveToDevice(it){
   document.body.appendChild(a);a.click();a.remove();
 }
 
+// Playlists sent to the browser are held back and delivered as ONE .zip (a folder) once every item has finished.
+function saveZip(g){
+  const a=document.createElement('a');
+  a.href=API+'/api/zip?group='+encodeURIComponent(g.id)+'&name='+encodeURIComponent(g.title);a.download='';
+  document.body.appendChild(a);a.click();a.remove();
+}
+function checkGroup(g){
+  if(!g||g.zipped)return;
+  const mine=items.filter(i=>i.group&&i.group.id===g.id);
+  if(mine.some(i=>i.status==='queued'||i.status==='active'))return; // still working
+  const ready=mine.filter(i=>i.status==='done'&&i.deferred);
+  if(!ready.length)return;
+  g.zipped=true;ready.forEach(i=>i.deferred=false);saveZip(g);render();
+}
+
 /* ---------- queue ---------- */
-function persist(){save('dl.history',items.filter(i=>i.status==='done').slice(0,30).map(({id,url,title,file,type}) => ({id,url,title,file,type})))}
-function enqueue(url){
-  items.unshift({id:Date.now()+Math.random(),url,title:url,status:'queued',pct:0,msg:'Waiting',type,
+function persist(){save('dl.history',items.filter(i=>i.status==='done').slice(0,30).map(({id,url,title,file,type,browserOnly}) => ({id,url,title,file,type,browserOnly})))}
+function enqueue(url,group){
+  items.unshift({id:Date.now()+Math.random(),url,title:url,status:'queued',pct:0,msg:'Waiting',type,group,
     ext:$('#ext').value,q:type==='audio_only'?$('#q').value:'best'});
   render();pump();
 }
-async function pump(){
-  if(running)return;
-  const it=[...items].reverse().find(i=>i.status==='queued');
-  if(!it)return;
-  running=true;await run(it);running=false;pump();
+function pump(){
+  while(running<PARALLEL){
+    const it=[...items].reverse().find(i=>i.status==='queued');
+    if(!it)return;
+    running++;
+    run(it).finally(()=>{running--;checkGroup(it.group);pump()}); // run() marks the item active immediately, so the next loop pass picks a different one
+  }
 }
 function run(it){
   return new Promise(done=>{
     it.status='active';it.msg='Connecting';render();
+    const toBrowser=!!settings.autoBrowser; // fixed at start so the server and this page agree even if the box is toggled mid-download
     let ws;
     try{ws=new WebSocket(WSU())}catch{it.status='error';it.msg='Can\u2019t reach the backend. Start it with npm start.';render();return done()}
-    ws.onopen=()=>ws.send(JSON.stringify({url:it.url,type:it.type,ext:it.ext,quality:it.q,allowPlaylist:false,settings}));
+    ws.onopen=()=>ws.send(JSON.stringify({url:it.url,type:it.type,ext:it.ext,quality:it.q,allowPlaylist:false,group:it.group&&{id:it.group.id,title:it.group.title},settings:{...settings,autoBrowser:toBrowser}}));
     ws.onmessage=e=>{
       const m=JSON.parse(e.data);
-      if(m.status==='completed'){it.file=m.file;it.title=m.file.title;it.status='done';it.pct=100;persist();if(settings.autoBrowser)saveToDevice(it)}
+      if(m.status==='completed'){it.file=m.file;it.title=m.file.title;it.status='done';it.pct=100;it.browserOnly=toBrowser;it.deferred=toBrowser&&!!it.group&&!it.group.zipped;persist();if(toBrowser&&!it.deferred)saveToDevice(it)}
       else if(m.status==='error'){it.status='error';it.msg=m.msg}
       else if(m.msg!==undefined){if(typeof m.percent==='number')it.pct=m.percent;if(m.status!=='connected')it.msg=m.msg}
       render();
@@ -212,15 +231,15 @@ function run(it){
 
 /* ---------- render ---------- */
 function render(){
-  const act=items.find(i=>i.status==='active');
-  $('#f').style.setProperty('--p',(act?act.pct:0)+'%');
+  const act=items.filter(i=>i.status==='active');
+  $('#f').style.setProperty('--p',(act.length?act.reduce((t,i)=>t+i.pct,0)/act.length:0)+'%');
   $('#empty').style.display=items.length?'none':'block';
   $('#list').innerHTML=items.map(i=>{
     const thumb=i.file&&i.file.thumbnail?`<img class="th" src="${esc(i.file.thumbnail)}" alt="" loading="lazy">`:`<div class="th"></div>`;
     let meta,acts='';
     if(i.status==='done'){
-      meta=i.missing?'File was moved or deleted':esc((i.file.duration||'')+(i.type==='audio_only'?' \u00b7 audio':' \u00b7 video'));
-      acts=i.missing?`<button class="btn" data-a="rm" data-id="${i.id}">Remove</button>`:
+      meta=i.deferred?'Done. Will download as one .zip when the whole playlist finishes':i.browserOnly?'Sent to your browser':i.missing?'File was moved or deleted':esc((i.file.duration||'')+(i.type==='audio_only'?' \u00b7 audio':' \u00b7 video'));
+      acts=i.deferred?'':(i.missing||i.browserOnly)?`<button class="btn" data-a="rm" data-id="${i.id}">Remove</button>`:
         `<button class="btn" data-a="save" data-id="${i.id}">Save to device</button>
          <a class="btn" href="${esc(fileUrl(i.file.url))}" target="_blank" rel="noopener">Open file</a>
          <button class="btn" data-a="show" data-id="${i.id}">Show in folder</button>
@@ -266,7 +285,8 @@ async function showPlaylist(url){
     const boxes=()=>[...box.querySelectorAll('input[data-u]:not(:disabled)')];
     $('#pall').onclick=()=>{const on=boxes().some(c=>!c.checked);boxes().forEach(c=>c.checked=on)};
     $('#pclose').onclick=()=>{box.className='';box.innerHTML=''};
-    $('#pgo').onclick=()=>{[...boxes()].filter(c=>c.checked).reverse().forEach(c=>enqueue(c.dataset.u));box.className='';box.innerHTML=''};
+    $('#pgo').onclick=()=>{const g={id:'pl'+Date.now().toString(36)+Math.random().toString(36).slice(2,8),title:p.title}; // one group per playlist: it ends up in one folder
+      [...boxes()].filter(c=>c.checked).reverse().forEach(c=>enqueue(c.dataset.u,g));box.className='';box.innerHTML=''};
   }catch(err){box.innerHTML=`<h2><span class="meta err">${esc(err.message)}</span><button class="btn" id="pclose" type="button">Close</button></h2>`;$('#pclose').onclick=()=>{box.className='';box.innerHTML=''}}
 }
 
@@ -280,6 +300,7 @@ $('#f').onsubmit=e=>{
 /* ---------- drop moved/deleted files from history ---------- */
 (async()=>{
   for(const it of items){
+    if(it.browserOnly)continue; // nothing is kept on the server for these
     try{const r=await post('/api/file_exists',{filepath:it.file.url});if(r.exists===false)it.missing=true}catch{break}
   }
   render();

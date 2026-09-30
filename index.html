@@ -434,12 +434,10 @@ function render(){
   $('#list').innerHTML=items.map(i=>{
     const thumb=i.file&&i.file.thumbnail?`<img class="th" src="${esc(i.file.thumbnail)}" alt="" loading="lazy">`:`<div class="th"></div>`;
     let meta,acts='';
-    const pvBtn=`<button class="btn" data-a="preview" data-id="${i.id}">${pvId===i.id?'Stop':'Preview'}</button>`;
     if(i.status==='done'){
       meta=i.deferred?'Done. Will download as one .zip when the whole playlist finishes':i.browserOnly?'Sent to your browser':i.missing?'File was moved or deleted':esc((i.file.duration||'')+(i.type==='audio_only'?' \u00b7 audio':' \u00b7 video'));
-      acts=i.deferred?'':(i.missing||i.browserOnly)?(i.browserOnly&&!i.missing&&i.file.preview?pvBtn:'')+`<button class="btn" data-a="rm" data-id="${i.id}">Remove</button>`:
+      acts=i.deferred?'':(i.missing||i.browserOnly)?`<button class="btn" data-a="rm" data-id="${i.id}">Remove</button>`:
         `<button class="btn pri" data-a="watch" data-id="${i.id}">${i.type==='audio_only'?'Listen':'Watch'}</button>
-         ${pvBtn}
          <button class="btn" data-a="save" data-id="${i.id}">Save to device</button>
          <a class="btn" href="${esc(fileUrl(i.file.url))}" target="_blank" rel="noopener">Open file</a>
          <button class="btn" data-a="edit" data-id="${i.id}">Edit</button>

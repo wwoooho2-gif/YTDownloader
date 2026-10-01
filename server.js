@@ -43,7 +43,6 @@ const { spawn, execFile } = require('child_process');
 const { pipeline } = require('stream/promises');
 
 const HOST = '127.0.0.1', PORT = +process.env.PORT || 8000;
-const APP_VERSION = require('./package.json').version;
 const ORIGIN = process.env.ALLOW_ORIGIN || '*';           // e.g. https://you.github.io
 const LOCAL_YTDLP = path.join(__dirname, 'bin', process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp');
 const YTDLP = process.env.YTDLP || (fs.existsSync(LOCAL_YTDLP) ? LOCAL_YTDLP : 'yt-dlp');
@@ -140,7 +139,7 @@ app.use((req, res, next) => {
 });
 app.use('/downloads', express.static(DL, { index: false }));
 app.get('/', (q, r) => r.sendFile(path.join(__dirname, 'index.html')));
-app.get('/api/health', (q, r) => r.json({ status: 'ok', msg: 'Backend is running', tools, version: APP_VERSION, update: latestRelease }));
+app.get('/api/health', (q, r) => r.json({ status: 'ok', msg: 'Backend is running', tools }));
 
 app.get('/api/file', (req, res) => {
   const p = path.resolve(String(req.query.path || ''));
@@ -490,37 +489,6 @@ wss.on('connection', (ws, req) => {
 
 /* ---------- startup / shutdown ---------- */
 const tools = { ytdlp: false, ffmpeg: false, aria2c: false };
-let latestRelease = null;
-const isNewerVersion = (candidate, current) => {
-  const parts = value => {
-    const match = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(value);
-    return match && match.slice(1).map(Number);
-  };
-  const candidateParts = parts(candidate), currentParts = parts(current);
-  if (!candidateParts || !currentParts) return false;
-  for (let index = 0; index < candidateParts.length; index++) {
-    if (candidateParts[index] !== currentParts[index]) return candidateParts[index] > currentParts[index];
-  }
-  return false;
-};
-async function checkForUpdate() {
-  try {
-    const response = await fetch('https://api.github.com/repos/wwoooho2-gif/YTDownloader/releases/latest', {
-      headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'YTDownloader-update-check' },
-      signal: AbortSignal.timeout(5000)
-    });
-    if (!response.ok) return;
-    const release = await response.json();
-    const version = String(release.tag_name || '').replace(/^v/, '');
-    if (!isNewerVersion(version, APP_VERSION) || !/^https:\/\/github\.com\//.test(release.html_url || '')) {
-      latestRelease = null;
-      return;
-    }
-    latestRelease = { version, url: release.html_url };
-  } catch {}
-}
-checkForUpdate();
-setInterval(checkForUpdate, 24 * 60 * 60 * 1000).unref();
 const probe = (cmd, args, key) => execFile(cmd, args, { timeout: 5000 }, e => { tools[key] = !e; });
 probe(YTDLP, ['--version'], 'ytdlp'); probe(FFMPEG, ['-version'], 'ffmpeg'); probe('aria2c', ['--version'], 'aria2c');
 setTimeout(() => {

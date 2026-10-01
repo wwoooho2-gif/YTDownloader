@@ -26,8 +26,7 @@ A web application for downloading, trimming, and editing video and audio content
    * Run the following command:
      ```bash
      npm install
-     ```
-
+   ```
 4. **Start the Application**
    * Start the development server:
      ```bash
@@ -38,8 +37,7 @@ A web application for downloading, trimming, and editing video and audio content
    * Open your web browser and go to:
      ```text
      http://localhost:8000/
-     ```
+   ```
 
-## Update notifications
+To update manually, get the latest source from the project repository.
 
-The app checks GitHub for a newer published release at startup and every 24 hours. To notify users of an update, bump the version in `package.json` and publish a GitHub release with a matching `vX.Y.Z` tag. The app links to the release but does not install updates automatically.

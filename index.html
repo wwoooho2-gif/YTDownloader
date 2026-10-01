@@ -9,31 +9,35 @@
 <style>
 :root{color-scheme:dark;--bg:#040b12;--glow:#0e2a3a;--sf:#0d1d2a;--sf2:#122839;--edge:#24404f;--ink:#e6f1f5;--mute:#8aa0ad;--ac:#2dd4bf;--acd:#0f766e;--acink:#03231f;--gold:#f5b03a;--bad:#ff8a80;--ok:#7bd8a4;--p:0%}
 *{box-sizing:border-box}
-html{background:#02050a;scroll-behavior:smooth}
-body{margin:0;min-height:100vh;color:var(--ink);font:15px/1.5 Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:transparent}
-/* dark nebula backdrop: soft coloured clouds + scanlines + vignette */
-body::before,body::after{content:"";position:fixed;inset:0;pointer-events:none}
-body::before{z-index:-2;background:
-  radial-gradient(520px 380px at 22% 24%,rgba(96,66,170,.42),transparent 70%),
-  radial-gradient(640px 300px at 48% 2%,rgba(18,128,128,.38),transparent 70%),
-  radial-gradient(520px 260px at 82% 12%,rgba(20,110,120,.26),transparent 70%),
-  radial-gradient(700px 420px at 90% 88%,rgba(30,84,180,.40),transparent 70%),
-  radial-gradient(560px 380px at 8% 88%,rgba(22,56,130,.34),transparent 70%),
-  radial-gradient(420px 300px at 62% 55%,rgba(14,80,90,.16),transparent 70%),
-  linear-gradient(#03070d,#02050a)}
-#bubbles{position:fixed;inset:0;width:100%;height:100%;z-index:-1;pointer-events:none}
-body::after{z-index:-1;background:
-  repeating-linear-gradient(0deg,rgba(255,255,255,.035) 0 1px,transparent 1px 3px),
-  radial-gradient(ellipse at center,transparent 45%,rgba(0,0,0,.55) 100%)}
+html{background:#050b12;scroll-behavior:smooth}
+body{margin:0;min-height:100vh;color:var(--ink);font:15px/1.5 Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:linear-gradient(180deg,#091723 0%,#050b12 100%)}
+#intro{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;overflow:hidden;background:radial-gradient(ellipse at 50% 62%,rgba(7,78,119,.3),transparent 48%),linear-gradient(180deg,#061423 0%,#04101d 58%,#020812 100%);transition:opacity .42s ease,visibility .42s ease}
+#intro[hidden]{display:none}
+#intro::before{content:"";position:absolute;z-index:0;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(195,232,255,.025) 0 1px,transparent 1px 4px),linear-gradient(112deg,transparent 32%,rgba(40,156,205,.055) 32.2%,transparent 32.7%,transparent 68%,rgba(47,164,207,.04) 68.2%,transparent 68.6%);background-size:100% 4px,200% 100%;animation:introCurrent 6s ease-in-out infinite alternate}
+#intro::after{content:"";position:absolute;z-index:2;left:-15%;right:-15%;top:0;height:2px;pointer-events:none;background:linear-gradient(90deg,transparent,#58cfff,transparent);box-shadow:0 0 22px rgba(43,184,255,.65);animation:introSweep 1.8s ease-out both}
+#intro.intro-out{opacity:0;visibility:hidden;pointer-events:none}
+.intro-core{position:relative;z-index:3;width:min(88vw,720px);text-align:center;animation:introRise .8s cubic-bezier(.2,.75,.25,1) both}
+.intro-kicker{display:block;margin-bottom:22px;color:#8acbe8;font-size:12px;font-weight:700}
+.intro-name{font:400 64px/.98 "Archivo Black",Inter,sans-serif;color:#f2f7fb;animation:introReveal .9s .12s cubic-bezier(.2,.75,.25,1) both}
+.intro-name span{color:#55c9f3}
+.intro-rule{height:2px;width:min(360px,70vw);margin:24px auto 14px;background:linear-gradient(90deg,transparent,#58cfff,#187db7,transparent);transform:scaleX(0);transform-origin:center;animation:introRule 1.05s .35s cubic-bezier(.2,.75,.25,1) forwards}
+.intro-status{color:#8aa0ad;font-size:11px;font-weight:700;animation:introStatus .5s .7s ease-out both}
+.intro-status i{display:inline-block;width:7px;height:7px;margin-right:8px;border-radius:50%;background:#43caff;box-shadow:0 0 12px #43caff;animation:introPulse .7s ease-in-out infinite alternate}
+@keyframes introSweep{from{transform:translateY(-10vh);opacity:0}15%,75%{opacity:1}to{transform:translateY(110vh);opacity:0}}
+@keyframes introCurrent{from{background-position:0 0,0% 50%}to{background-position:0 0,100% 50%}}
+@keyframes introRise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+@keyframes introReveal{from{opacity:0;clip-path:inset(0 0 100% 0);transform:translateY(12px)}to{opacity:1;clip-path:inset(0);transform:none}}
+@keyframes introRule{to{transform:scaleX(1)}}
+@keyframes introStatus{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+@keyframes introPulse{to{opacity:.35}}
+@media(max-width:520px){.intro-name{font-size:40px}.intro-kicker{font-size:10px}}
+@media(prefers-reduced-motion:reduce){#intro,#intro::before,#intro::after,.intro-core,.intro-kicker,.intro-rule,.intro-name,.intro-status,.intro-status i{animation:none;transition:none}}
 main{max-width:760px;margin:0 auto;padding:36px 20px 80px}
 header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:26px}
 h1{font:400 34px/1.05 "Archivo Black",Inter,sans-serif;margin:0;text-transform:uppercase;color:var(--ac);text-shadow:0 3px 0 var(--acd),0 0 22px rgba(45,212,191,.25)}
-#outdated{display:block;margin-top:6px;color:var(--bad);font-size:12.5px;font-weight:700}
 .tag{margin:8px 0 0;color:var(--gold);font-size:14px}
 #health{font-size:12.5px;color:var(--mute);border:1px solid var(--edge);background:var(--sf);border-radius:99px;padding:5px 12px;white-space:nowrap;margin-top:6px}
 .status{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
-#update{font-size:12px;color:var(--gold);text-decoration:none;border:1px solid var(--edge);background:var(--sf);border-radius:99px;padding:4px 10px;white-space:nowrap}
-#update:hover{border-color:var(--gold)}
 #health i{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--mute);margin-right:6px}
 #health.up i{background:var(--ok)}#health.down i{background:var(--bad)}
 button,input,select{font:inherit;color:inherit}
@@ -163,9 +167,11 @@ details.closing summary::before{transform:none}
 </style>
 </head>
 <body>
-<canvas id="bubbles" aria-hidden="true"></canvas>
-<main>
-<header><div><h1>Download that Stuff</h1><span id="outdated" hidden>Not up to date</span></div><div class="status"><span id="health"><i></i><span>Checking backend</span></span><a id="update" hidden target="_blank" rel="noopener">Update available</a></div></header>
+<div id="intro" aria-hidden="true">
+  <div class="intro-core"><span class="intro-kicker">LOCAL MEDIA TOOL // READY</span><div class="intro-name">DOWNLOAD<br><span>THAT STUFF</span></div><div class="intro-rule"></div><div class="intro-status"><i></i>DIVING IN</div></div>
+</div>
+<main inert>
+<header><div><h1>Download that Stuff</h1></div><div class="status"><span id="health"><i></i><span>Checking backend</span></span></div></header>
 
 <div class="seg tabs" id="tabs" role="group" aria-label="Section">
   <button type="button" data-t="dl" aria-pressed="true">Download</button>
@@ -212,6 +218,7 @@ details.closing summary::before{transform:none}
       <label class="chk"><input type="checkbox" id="downloadMetadata"> Save description and info file</label>
       <label class="chk"><input type="checkbox" id="useCache"> Reuse files already downloaded</label>
       <label class="chk"><input type="checkbox" id="autoBrowser"> Also download in my browser when finished</label>
+      <label class="chk"><input type="checkbox" id="replayIntroOnReload"> Replay intro on every page load</label>
     </div>
     <div><button type="button" class="btn" id="clr">Clear download cache</button> <span class="meta" id="clrmsg"></span></div>
   </div>
@@ -285,11 +292,25 @@ details.closing summary::before{transform:none}
 
 <script>
 const $=s=>document.querySelector(s);
+const intro=$('#intro'),app=$('main');
+const replayIntroOnReload=(()=>{try{return JSON.parse(localStorage.getItem('dl.settings')||'{}').replayIntroOnReload===true}catch{return false}})();
+let introTimer;
+function finishIntro(){
+  if(intro.hidden)return;
+  clearTimeout(introTimer);intro.classList.add('intro-out');app.inert=false;
+  try{sessionStorage.setItem('dl.intro.seen','1')}catch{}
+  setTimeout(()=>{intro.hidden=true;$('#url').focus({preventScroll:true})},420);
+}
+try{
+  if(!replayIntroOnReload&&sessionStorage.getItem('dl.intro.seen')){intro.hidden=true;app.inert=false}
+  else if(matchMedia('(prefers-reduced-motion:reduce)').matches){intro.hidden=true;app.inert=false}
+  else introTimer=setTimeout(finishIntro,2200);
+}catch{introTimer=setTimeout(finishIntro,2200)}
 const HOSTED=/\.github\.io$/.test(location.hostname)||!location.protocol.startsWith('http');
 let API=((()=>{try{return localStorage.getItem('dl.backend')}catch{}})()||(HOSTED?'http://localhost:8000':location.origin)).replace(/\/+$/,'');
 const WSU=()=>API.replace(/^http/,'ws')+'/ws/download';
 const EXTS={video_audio:['mp4','webm','mkv'],video_only:['mp4','webm','mkv'],audio_only:['mp3','m4a','ogg','opus','flac','wav']};
-const DEF={useCache:true,organizeTypes:false,organizeChannel:false,extractSubtitles:false,downloadMetadata:false,downloadDirectory:'',autoBrowser:true};
+const DEF={useCache:true,organizeTypes:false,organizeChannel:false,extractSubtitles:false,downloadMetadata:false,downloadDirectory:'',autoBrowser:true,replayIntroOnReload:false};
 const load=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}};
 const save=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -303,7 +324,7 @@ let items=load('dl.history',[]).map(i=>({...i,status:'done'}));
 const PARALLEL=8;let running=0; // matches the server's default MAX_JOBS
 
 /* ---------- settings ---------- */
-const flags=['organizeTypes','organizeChannel','extractSubtitles','downloadMetadata','useCache','autoBrowser'];
+const flags=['organizeTypes','organizeChannel','extractSubtitles','downloadMetadata','useCache','autoBrowser','replayIntroOnReload'];
 flags.forEach(k=>{const el=$('#'+k);el.checked=!!settings[k];el.onchange=()=>{settings[k]=el.checked;save('dl.settings',settings)}});
 $('#dir').value=settings.downloadDirectory;$('#dir').onchange=e=>{settings.downloadDirectory=e.target.value.trim();save('dl.settings',settings)};
 $('#backend').value=API;$('#backend').onchange=e=>{API=e.target.value.trim().replace(/\/+$/,'')||API;try{localStorage.setItem('dl.backend',API)}catch{}health()};
@@ -327,13 +348,12 @@ setType('video_audio');
 
 /* ---------- health ---------- */
 async function health(){
-  const h=$('#health'),t=h.querySelector('span'),u=$('#update'),stale=$('#outdated');
+  const h=$('#health'),t=h.querySelector('span');
   try{
     const r=await fetch(API+'/api/health');if(!r.ok)throw 0;
-    const info=await r.json();h.className='up';t.textContent='Backend connected';
-    if(info.update){u.href=info.update.url;u.textContent=`Update ${info.update.version} available`;u.hidden=false;stale.hidden=false}else{u.hidden=true;stale.hidden=true}
+    await r.json();h.className='up';t.textContent='Backend connected';
   }
-  catch{h.className='down';t.textContent='Backend offline. Run npm start';u.hidden=true;stale.hidden=true}
+  catch{h.className='down';t.textContent='Backend offline. Run npm start'}
 }
 health();setInterval(health,15000);
 
@@ -532,41 +552,6 @@ $('#f').onsubmit=e=>{
   render();
 })();
 render();
-
-/* ---------- drifting background bubbles ---------- */
-(()=>{
-  const c=$('#bubbles'),x=c.getContext('2d');
-  const still=matchMedia('(prefers-reduced-motion:reduce)').matches;
-  let W=0,H=0,bs=[],timer=null;
-  const rnd=(a,b)=>a+Math.random()*(b-a);
-  const mk=(init)=>({r:rnd(2.5,13),x:rnd(0,W),y:init?rnd(0,H):H+20,vy:rnd(.12,.45),ph:rnd(0,6.28),sw:rnd(.15,.6),sp:rnd(.004,.012),a:rnd(.5,1)});
-  function size(){
-    const d=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;
-    c.width=W*d;c.height=H*d;x.setTransform(d,0,0,d,0,0);
-    const n=Math.round(Math.min(40,Math.max(18,W*H/40000)));
-    while(bs.length<n)bs.push(mk(true));bs.length=n;
-  }
-  function frame(){
-    timer=null;
-    if(document.hidden)return;
-    x.clearRect(0,0,W,H);
-    for(const b of bs){
-      if(!still){b.y-=b.vy;b.ph+=b.sp;b.x+=Math.sin(b.ph)*b.sw;if(b.y<-20){Object.assign(b,mk(false));b.x=rnd(0,W)}}
-      x.beginPath();x.arc(b.x,b.y,b.r,0,6.283);
-      x.fillStyle=`rgba(70,150,165,${.10*b.a})`;x.fill();
-      x.lineWidth=1;x.strokeStyle=`rgba(120,205,215,${.22*b.a})`;x.stroke();
-      x.beginPath();x.arc(b.x-b.r*.3,b.y-b.r*.3,b.r*.25,0,6.283);
-      x.fillStyle=`rgba(200,245,250,${.16*b.a})`;x.fill();
-    }
-    if(!still)timer=setTimeout(frame,1000/30);
-  }
-  addEventListener('resize',()=>{size();if(still)frame()});
-  document.addEventListener('visibilitychange',()=>{
-    if(document.hidden){clearTimeout(timer);timer=null;return}
-    if(!still&&timer===null)frame();
-  });
-  size();frame();
-})();
 
 /* ---------- smooth Settings menu ---------- */
 (()=>{

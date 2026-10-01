@@ -23,21 +23,13 @@ A web application for downloading, trimming, and editing video and audio content
 
 3. **Install Dependencies**
    * Open the built-in terminal (**Terminal** -> **New Terminal**).
-   * Run the following command:
-     ```bash
-     npm install
-      ```
+   * Run `npm install`.
+
 4. **Start the Application**
-   * Start the development server:
-     ```bash
-     npm start
-       ```
+   * Start the development server with `npm start`.
 
 5. **Open in Browser**
-   * Open your web browser and go to:
-     ```text
-     http://localhost:8000/
-       ```
+   * Open `http://localhost:8000/` in your browser.
 
 To update manually, get the latest source from the project repository.
 

@@ -236,11 +236,24 @@ if(load('dl.settingsV',1)<3){Object.assign(settings,{organizeTypes:false,organiz
 if(load('dl.settingsV',3)<5){delete settings.fastDownload;save('dl.settings',settings);save('dl.settingsV',5)}
 let type='video_audio';
 let items=load('dl.history',[]).map(i=>({...i,status:'done'}));
-const PARALLEL=8;let running=0; // matches the server's default MAX_JOBS
+const PARALLEL=8,AUTO_RETRIES=2;let running=0; // matches the server's default MAX_JOBS
 let progressRenderTimer=null;
 function scheduleProgressRender(){
   if(progressRenderTimer!==null)return;
-  progressRenderTimer=setTimeout(()=>{progressRenderTimer=null;render()},100);
+  progressRenderTimer=setTimeout(()=>{
+    progressRenderTimer=null;
+    const active=items.filter(i=>i.status==='active');
+    const rows=[...$('#list').children];
+    for(const i of active){
+      const row=rows.find(el=>el.dataset.id===String(i.id));
+      if(!row)continue;
+      const status=row.querySelector('[data-status]');
+      const bar=row.querySelector('.bar b');
+      if(status)status.textContent=i.msg;
+      if(bar)bar.style.width=i.pct+'%';
+    }
+    $('#f').style.setProperty('--p',(active.length?active.reduce((total,i)=>total+i.pct,0)/active.length:0)+'%');
+  },100);
 }
 
 /* ---------- settings ---------- */
@@ -365,19 +378,31 @@ function pump(){
 }
 function run(it){
   return new Promise(done=>{
-    it.status='active';it.msg='Connecting';render();
+    it.attempt=(it.attempt||0)+1;it.lastError='';it.status='active';it.msg=it.attempt>1?`Retrying download (${it.attempt-1}/${AUTO_RETRIES})`:'Connecting';render();
     const toBrowser=!!settings.autoBrowser; // fixed at start so the server and this page agree even if the box is toggled mid-download
     let ws;
     try{ws=new WebSocket(WSU())}catch{it.status='error';it.msg='Can\u2019t reach the backend. Start it with npm start.';render();return done()}
+    it.ws=ws;
     ws.onopen=()=>ws.send(JSON.stringify({url:it.url,type:it.type,ext:it.ext,quality:it.q,resolution:it.resolution,allowPlaylist:false,group:it.group&&{id:it.group.id,title:it.group.title},settings:{...settings,autoBrowser:toBrowser}}));
     ws.onmessage=e=>{
+      if(it.status!=='active')return;
       const m=JSON.parse(e.data);
       if(m.status==='completed'){it.file=m.file;it.title=m.file.title;it.status='done';it.pct=100;it.browserOnly=toBrowser;it.deferred=toBrowser&&!!it.group&&!it.group.zipped;persist();if(toBrowser&&!it.deferred)saveToDevice(it);render()}
-      else if(m.status==='error'){it.status='error';it.msg=m.msg;render()}
+      else if(m.status==='error'){it.lastError=m.msg;it.msg=m.msg;render()}
       else if(m.msg!==undefined&&m.status!=='connected'){if(typeof m.percent==='number')it.pct=m.percent;it.msg=m.msg;scheduleProgressRender()}
     };
-    ws.onerror=()=>{if(it.status==='active'){it.status='error';it.msg='Can\u2019t reach the backend. Start it with npm start.'}render()};
-    ws.onclose=()=>{if(it.status==='active'){it.status='error';it.msg='The connection closed before the download finished.'}render();done()};
+    ws.onerror=()=>{if(it.status==='active'){it.lastError='Can\u2019t reach the backend. Start it with npm start.';ws.close()}};
+    ws.onclose=()=>{
+      it.ws=null;
+      if(it.status==='active'){
+        const permanent=/look like a link|Bad (download type|format options|resolution option)|yt-dlp .*installed/i.test(it.lastError||'');
+        if(it.type!=='audio_only'&&!permanent&&it.attempt<=AUTO_RETRIES){
+          it.status='retrying';it.msg=`Download failed. Retrying (${it.attempt}/${AUTO_RETRIES})...`;
+          it.retryTimer=setTimeout(()=>{it.retryTimer=null;if(it.status==='retrying'){it.status='queued';render();pump()}},it.attempt*1000);
+        }else{it.status='error';it.msg=it.lastError||'The connection closed before the download finished.'}
+      }
+      render();done();
+    };
   });
 }
 
@@ -400,12 +425,16 @@ function render(){
     }else if(i.status==='error'){
       meta=`<span class="meta err">${esc(i.msg)}</span>`;
       acts=`<button class="btn" data-a="retry" data-id="${i.id}">Try again</button><button class="btn" data-a="rm" data-id="${i.id}">Remove</button>`;
+    }else if(i.status==='cancelled'){
+      meta='Cancelled';acts=`<button class="btn" data-a="retry" data-id="${i.id}">Try again</button><button class="btn" data-a="rm" data-id="${i.id}">Remove</button>`;
+    }else if(i.status==='retrying'){
+      meta=esc(i.msg);acts=`<button class="btn bad" data-a="cancel" data-id="${i.id}">Cancel download</button>`;
     }else if(i.status==='queued'){
       meta='Waiting for earlier downloads';acts=`<button class="btn" data-a="rm" data-id="${i.id}">Cancel</button>`;
-    }else meta=esc(i.msg);
+    }else {meta=esc(i.msg);acts=`<button class="btn bad" data-a="cancel" data-id="${i.id}">Cancel download</button>`}
     const bar=i.status==='active'?`<div class="bar"><b style="width:${i.pct}%"></b></div>`:'';
-    return `<li class="it">${thumb}<div style="min-width:0"><div class="tt" title="${esc(i.title)}">${esc(i.title)}</div>
-      <div class="meta">${meta}</div>${pvErr&&pvErr.id===i.id?`<div class="meta err">${esc(pvErr.msg)}</div>`:''}${bar}<div class="acts">${acts}</div></div></li>`;
+    return `<li class="it" data-id="${i.id}">${thumb}<div style="min-width:0"><div class="tt" title="${esc(i.title)}">${esc(i.title)}</div>
+      <div class="meta" data-status>${meta}</div>${pvErr&&pvErr.id===i.id?`<div class="meta err">${esc(pvErr.msg)}</div>`:''}${bar}<div class="acts">${acts}</div></div></li>`;
   }).join('');
 }
 $('#list').onclick=async e=>{
@@ -416,7 +445,8 @@ $('#list').onclick=async e=>{
   else if(a==='save')saveToDevice(it);
   else if(a==='watch'){openPlayer(it);return}
   else if(a==='preview'){togglePreview(it);return}
-  else if(a==='retry'){it.status='queued';it.pct=0;it.msg='Waiting';pump()}
+  else if(a==='retry'){it.attempt=0;it.lastError='';it.status='queued';it.pct=0;it.msg='Waiting';pump()}
+  else if(a==='cancel'&&(it.status==='active'||it.status==='retrying')){it.status='cancelled';it.msg='Cancelled';clearTimeout(it.retryTimer);it.ws?.close()}
   else if(a==='show'){try{await post('/api/open_location',{filepath:it.file.url})}catch{}}
   else if(a==='del'){
     if(!confirm('Delete this file from disk?'))return;
@@ -424,7 +454,7 @@ $('#list').onclick=async e=>{
   }
   render();
 };
-$('#clrlist').onclick=()=>{items=items.filter(i=>i.status==='active'||i.status==='queued');persist();render()};
+$('#clrlist').onclick=()=>{items=items.filter(i=>i.status==='active'||i.status==='queued'||i.status==='retrying');persist();render()};
 
 /* ---------- playlist ---------- */
 const REDUCE=matchMedia('(prefers-reduced-motion:reduce)').matches;

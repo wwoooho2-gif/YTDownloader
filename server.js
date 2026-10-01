@@ -36,6 +36,7 @@ const ORIGIN = process.env.ALLOW_ORIGIN || '*';           // e.g. https://you.gi
 const LOCAL_YTDLP = path.join(__dirname, 'bin', process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp');
 const YTDLP = process.env.YTDLP || (fs.existsSync(LOCAL_YTDLP) ? LOCAL_YTDLP : 'yt-dlp');
 let FFMPEG = process.env.FFMPEG || '';
+if (!FFMPEG && process.platform === 'linux' && fs.existsSync('/usr/bin/ffmpeg')) FFMPEG = '/usr/bin/ffmpeg';
 if (!FFMPEG) { try { FFMPEG = require('ffmpeg-static') || ''; } catch {} }
 if (!FFMPEG || !fs.existsSync(FFMPEG)) FFMPEG = 'ffmpeg';
 const CONNS = Math.min(16, Math.max(1, +process.env.CONNECTIONS || 16)); // parallel connections per download
@@ -348,8 +349,8 @@ wss.on('connection', (ws, req) => {
       let r;
       try { r = await run(buildArgs({ ...base, recode: false })); }
       catch (e) {
-        const canRetry = !closed && type !== 'audio_only' && /remux|postprocess|ffmpeg|conversion|container/i.test(e.full || e.message);
-        if (!canRetry) throw e;
+        const canRecode = !closed && type !== 'audio_only' && /remux|postprocess|ffmpeg|conversion|container/i.test(e.full || e.message);
+        if (!canRecode) throw e;
         send({ status: 'starting', msg: 'Remux failed, converting instead (slower)' });
         r = await run(buildArgs({ ...base, recode: true }));
       }

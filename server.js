@@ -2,7 +2,7 @@
 
 /* ---------- installer: `node server.js --install` (runs after npm install) ---------- */
 if (process.argv.includes('--install')) {
-  const fs = require('fs'), path = require('path'), { spawnSync } = require('child_process'); // own requires: must work before dependencies are loaded
+  const fs = require('fs'), path = require('path'); // own requires: must work before dependencies are loaded
   const installYtdlp = async () => {
     const { platform, arch } = process;
     const asset = platform === 'win32' ? (arch === 'ia32' ? 'yt-dlp_x86.exe' : 'yt-dlp.exe')
@@ -19,18 +19,8 @@ if (process.argv.includes('--install')) {
     fs.chmodSync(dest + '.part', 0o755); fs.renameSync(dest + '.part', dest);
     console.log('[install] yt-dlp installed to', dest);
   };
-  const installAria2 = () => { // multi-connection downloader: makes downloads much faster (Arch/Omarchy: pacman)
-    if (process.platform !== 'linux' || process.env.ARIA2 === '0') return;
-    const has = cmd => spawnSync(cmd, ['--version'], { stdio: 'ignore' }).status === 0;
-    if (has('aria2c')) return console.log('[install] aria2c already installed, skipping.');
-    if (!has('pacman')) return console.warn('[install] pacman not found. Install aria2 with your package manager for faster downloads.');
-    console.log('[install] Installing aria2 (sudo pacman -S aria2), you may be asked for your password...');
-    const r = spawnSync('sudo', ['pacman', '-S', '--needed', '--noconfirm', 'aria2'], { stdio: 'inherit' });
-    if (r.status !== 0) console.warn('[install] Could not install aria2. Run it yourself: sudo pacman -S aria2');
-  };
   (async () => {
     try { await installYtdlp(); } catch (e) { console.warn(`[install] Could not download yt-dlp (${e.message}). Retry with: npm run install-tools`); }
-    try { installAria2(); } catch (e) { console.warn(`[install] aria2 step failed (${e.message})`); }
   })().finally(() => process.exit(0));
   return; // don't start the server
 }
@@ -81,6 +71,14 @@ function flushDb() { // synchronous: only used on shutdown
   catch (e) { console.error('cache write failed:', e.message); }
 }
 const saveDb = () => { clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 300); };
+const MAX_CACHE_ROWS = 500;
+function trimCache() {
+  const keys = Object.keys(db.rows), excess = keys.length - MAX_CACHE_ROWS;
+  if (excess <= 0) return false;
+  for (let i = 0; i < excess; i++) delete db.rows[keys[i]];
+  return true;
+}
+if (trimCache()) saveDb();
 
 /* ---------- helpers ---------- */
 let realRoots = []; // realpath of every root, computed once instead of on every request
@@ -361,7 +359,7 @@ wss.on('connection', (ws, req) => {
       const file = { title: r.title, thumbnail: na(r.thumb), duration: na(r.dur), type,
         url: `http://localhost:${PORT}/api/file?path=${encodeURIComponent(fp)}` };
       if (toBrowser) { ephemeral.set(fp, { dir: jobDir, t: Date.now(), group: gid }); keep = true; }
-      else if (useCache) { db.rows[k] = file; saveDb(); }
+      else if (useCache) { db.rows[k] = file; trimCache(); saveDb(); }
       send({ status: 'completed', msg: 'All done', file });
     } finally { if (jobDir && !keep) rmJob(jobDir); }
     ws.close();
@@ -374,7 +372,7 @@ const probe = (cmd, args, key) => execFile(cmd, args, { timeout: 5000 }, e => { 
 probe(YTDLP, ['--version'], 'ytdlp'); probe(FFMPEG, ['-version'], 'ffmpeg'); probe('aria2c', ['--version'], 'aria2c');
 setTimeout(() => {
   if (!tools.ytdlp) console.warn('! yt-dlp not found (run: npm run install-tools, or set YTDLP=/path/to/yt-dlp)');
-  if (USE_ARIA2 && !tools.aria2c) console.warn('i aria2c not found: downloads use a single connection. Install it for multi-connection speed (Arch: sudo pacman -S aria2)');
+  if (USE_ARIA2 && !tools.aria2c) console.warn('i aria2c not found: using yt-dlp native downloads; aria2c is optional.');
   if (!tools.ffmpeg) console.warn('! ffmpeg not found (run npm install, or set FFMPEG=/path/to/ffmpeg): merging and audio conversion will fail');
 }, 1500).unref();
 

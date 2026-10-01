@@ -26,18 +26,18 @@ A web application for downloading, trimming, and editing video and audio content
    * Run the following command:
      ```bash
      npm install
-   ```
+      ```
 4. **Start the Application**
    * Start the development server:
      ```bash
      npm start
-     ```
+       ```
 
 5. **Open in Browser**
    * Open your web browser and go to:
      ```text
      http://localhost:8000/
-   ```
+       ```
 
 To update manually, get the latest source from the project repository.
 

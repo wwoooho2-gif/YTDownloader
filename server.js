@@ -343,13 +343,14 @@ app.use((err, q, res, n) => res.status(err.status || 500).json({ detail: err.typ
 
 /* ---------- yt-dlp argument builder ---------- */
 function buildArgs({ url, type, ext, q, s, dir, recode, resolution = 'best' }) {
+  const fragmentConnections = Math.min(32, CONNS * 2);
   const a = ['--quiet', '--no-simulate', '--progress', '--newline', '--no-playlist', '--no-warnings',
     ...(FFMPEG !== 'ffmpeg' ? ['--ffmpeg-location', FFMPEG] : []),
-    '-N', String(CONNS), '--http-chunk-size', '10M', '--buffer-size', '256K', '--no-mtime', '--retries', '5', '--fragment-retries', '5',
+    '-N', String(fragmentConnections), '--http-chunk-size', '10M', '--buffer-size', '256K', '--no-mtime', '--retries', '5', '--fragment-retries', '5',
     '--progress-template', 'download:PROG|%(progress.downloaded_bytes)s|%(progress.total_bytes)s|%(progress.total_bytes_estimate)s|%(progress.speed)s|%(progress.eta)s',
     '--print', 'after_move:DONE\t%(filepath)s\t%(title)s\t%(thumbnail)s\t%(duration_string)s'];
   if (USE_ARIA2 && tools.aria2c) // multi-connection downloader for plain HTTP streams; fragmented HLS/DASH stays native
-    a.push('--downloader', 'aria2c', '--downloader', 'dash,m3u8:native', '--downloader-args', `aria2c:-x ${CONNS} -s ${CONNS} -k 1M --min-split-size=1M --file-allocation=none`);
+    a.push('--downloader', 'aria2c', '--downloader', 'dash,m3u8:native', '--downloader-args', `aria2c:-x ${Math.min(16, fragmentConnections)} -s ${Math.min(16, fragmentConnections)} -k 1M --min-split-size=1M --file-allocation=none`);
   if (type === 'audio_only') {
     // "fast": grab a small (<=128 kbps) stream when one exists and skip the cover-art download/embed pass
     a.push('-f', q === 'fast' ? 'bestaudio[abr<=130]/bestaudio/best' : 'bestaudio/best', '-x', '--audio-format', ext === 'ogg' ? 'vorbis' : ext); // yt-dlp calls .ogg audio "vorbis"

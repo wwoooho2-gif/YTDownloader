@@ -28,6 +28,7 @@ body::after{z-index:-1;background:
 main{max-width:760px;margin:0 auto;padding:36px 20px 80px}
 header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:26px}
 h1{font:400 34px/1.05 "Archivo Black",Inter,sans-serif;margin:0;text-transform:uppercase;color:var(--ac);text-shadow:0 3px 0 var(--acd),0 0 22px rgba(45,212,191,.25)}
+#outdated{display:block;margin-top:6px;color:var(--bad);font-size:12.5px;font-weight:700}
 .tag{margin:8px 0 0;color:var(--gold);font-size:14px}
 #health{font-size:12.5px;color:var(--mute);border:1px solid var(--edge);background:var(--sf);border-radius:99px;padding:5px 12px;white-space:nowrap;margin-top:6px}
 .status{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
@@ -164,7 +165,7 @@ details.closing summary::before{transform:none}
 <body>
 <canvas id="bubbles" aria-hidden="true"></canvas>
 <main>
-<header><div><h1>Download that Stuff</h1></div><div class="status"><span id="health"><i></i><span>Checking backend</span></span><a id="update" hidden target="_blank" rel="noopener">Update available</a></div></header>
+<header><div><h1>Download that Stuff</h1><span id="outdated" hidden>Not up to date</span></div><div class="status"><span id="health"><i></i><span>Checking backend</span></span><a id="update" hidden target="_blank" rel="noopener">Update available</a></div></header>
 
 <div class="seg tabs" id="tabs" role="group" aria-label="Section">
   <button type="button" data-t="dl" aria-pressed="true">Download</button>
@@ -326,13 +327,13 @@ setType('video_audio');
 
 /* ---------- health ---------- */
 async function health(){
-  const h=$('#health'),t=h.querySelector('span'),u=$('#update');
+  const h=$('#health'),t=h.querySelector('span'),u=$('#update'),stale=$('#outdated');
   try{
     const r=await fetch(API+'/api/health');if(!r.ok)throw 0;
     const info=await r.json();h.className='up';t.textContent='Backend connected';
-    if(info.update){u.href=info.update.url;u.textContent=`Update ${info.update.version} available`;u.hidden=false}else u.hidden=true;
+    if(info.update){u.href=info.update.url;u.textContent=`Update ${info.update.version} available`;u.hidden=false;stale.hidden=false}else{u.hidden=true;stale.hidden=true}
   }
-  catch{h.className='down';t.textContent='Backend offline. Run npm start';u.hidden=true}
+  catch{h.className='down';t.textContent='Backend offline. Run npm start';u.hidden=true;stale.hidden=true}
 }
 health();setInterval(health,15000);
 

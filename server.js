@@ -42,7 +42,8 @@ const fsp = fs.promises;
 const { spawn, execFile } = require('child_process');
 const { pipeline } = require('stream/promises');
 
-const HOST = process.env.HOST || '127.0.0.1', PORT = +process.env.PORT || 8000;
+const HOST = '127.0.0.1', PORT = +process.env.PORT || 8000;
+const APP_VERSION = require('./package.json').version;
 const ORIGIN = process.env.ALLOW_ORIGIN || '*';           // e.g. https://you.github.io
 const LOCAL_YTDLP = path.join(__dirname, 'bin', process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp');
 const YTDLP = process.env.YTDLP || (fs.existsSync(LOCAL_YTDLP) ? LOCAL_YTDLP : 'yt-dlp');
@@ -52,7 +53,7 @@ if (!FFMPEG || !fs.existsSync(FFMPEG)) FFMPEG = 'ffmpeg';
 const CONNS = Math.min(16, Math.max(1, +process.env.CONNECTIONS || 16)); // parallel connections per download
 const EMBED_VIDEO = process.env.EMBED_VIDEO === '1'; // thumbnail/tag embedding rewrites the whole video file: off = much faster
 const USE_ARIA2 = process.env.ARIA2 !== '0';                            // auto-used when aria2c is installed
-const MAX_JOBS = Math.max(1, +process.env.MAX_JOBS || 3); // parallel downloads
+const MAX_JOBS = Math.max(1, +process.env.MAX_JOBS || 8); // parallel downloads
 const DL = path.join(__dirname, 'downloads'), CACHE = path.join(__dirname, 'cache.json');
 const TMP = path.join(__dirname, 'tmp-browser'); // staging area for "browser only" downloads; wiped on start/exit (not /tmp: it is RAM-backed on many distros)
 
@@ -139,7 +140,7 @@ app.use((req, res, next) => {
 });
 app.use('/downloads', express.static(DL, { index: false }));
 app.get('/', (q, r) => r.sendFile(path.join(__dirname, 'index.html')));
-app.get('/api/health', (q, r) => r.json({ status: 'ok', msg: 'Backend is running', tools }));
+app.get('/api/health', (q, r) => r.json({ status: 'ok', msg: 'Backend is running', tools, version: APP_VERSION, update: latestRelease }));
 
 app.get('/api/file', (req, res) => {
   const p = path.resolve(String(req.query.path || ''));
@@ -341,7 +342,7 @@ app.post('/api/edit', ah(async (req, res) => {
 app.use((err, q, res, n) => res.status(err.status || 500).json({ detail: err.type === 'entity.parse.failed' ? 'Bad JSON' : 'Server error' }));
 
 /* ---------- yt-dlp argument builder ---------- */
-function buildArgs({ url, type, ext, q, s, dir, recode }) {
+function buildArgs({ url, type, ext, q, s, dir, recode, resolution = 'best' }) {
   const a = ['--quiet', '--no-simulate', '--progress', '--newline', '--no-playlist', '--no-warnings',
     ...(FFMPEG !== 'ffmpeg' ? ['--ffmpeg-location', FFMPEG] : []),
     '-N', String(CONNS), '--http-chunk-size', '10M', '--buffer-size', '256K', '--no-mtime', '--retries', '5', '--fragment-retries', '5',
@@ -354,9 +355,10 @@ function buildArgs({ url, type, ext, q, s, dir, recode }) {
     a.push('-f', q === 'fast' ? 'bestaudio[abr<=130]/bestaudio/best' : 'bestaudio/best', '-x', '--audio-format', ext === 'ogg' ? 'vorbis' : ext); // yt-dlp calls .ogg audio "vorbis"
     if (!['wav', 'flac'].includes(ext)) a.push('--audio-quality', q === 'fast' ? '128' : q);
   } else {
-    const f = type === 'video_only' ? `bestvideo[ext=${ext}]/bestvideo/best`
-      : ext === 'webm' ? 'bestvideo[ext=webm]+bestaudio[ext=webm]/bestvideo[ext=webm]+bestaudio/best[ext=webm]/best'
-      : `bestvideo[ext=${ext}]+bestaudio[ext=m4a]/bestvideo[ext=${ext}]+bestaudio/best[ext=${ext}]/best`;
+    const height = resolution === 'best' ? '' : `[height<=${resolution}]`;
+    const f = type === 'video_only' ? `bestvideo[ext=${ext}]${height}/bestvideo${height}/best${height}`
+      : ext === 'webm' ? `bestvideo[ext=webm]${height}+bestaudio[ext=webm]/bestvideo[ext=webm]${height}+bestaudio/best[ext=webm]${height}/best${height}`
+      : `bestvideo[ext=${ext}]${height}+bestaudio[ext=m4a]/bestvideo[ext=${ext}]${height}+bestaudio/best[ext=${ext}]${height}/best${height}`;
     // Remux (fast, lossless copy) first; only re-encode as a fallback when remuxing fails.
     a.push('-f', f, '--merge-output-format', ext, recode ? '--recode-video' : '--remux-video', ext);
   }
@@ -436,12 +438,14 @@ wss.on('connection', (ws, req) => {
     if (!['video_audio', 'video_only', 'audio_only'].includes(type)) throw new Error('Bad download type.');
     const ext = String(req.ext || (type === 'audio_only' ? 'mp3' : 'mp4')).toLowerCase(), q = String(req.quality || '192');
     if (!/^[a-z0-9]{2,5}$/.test(ext) || !/^(\d+|best|fast)$/.test(q)) throw new Error('Bad format options.');
+    const resolution = type === 'audio_only' ? 'best' : String(req.resolution || 'best');
+    if (!/^(best|2160|1440|1080|720|480|360)$/.test(resolution)) throw new Error('Bad resolution option.');
     const toBrowser = !!s.autoBrowser; // "browser only": stage in a private temp folder, hand the file to the browser, then delete it
     const gid = group && /^[\w-]{6,64}$/.test(String(group.id)) ? String(group.id) : null; // set when this download is part of a playlist
     const base0 = toBrowser ? TMP : normDir(s.downloadDirectory);
     const dir = gid && !toBrowser ? path.join(base0, folderName(group.title)) : base0; // saving to disk: playlist items go into a folder named after the playlist
     const useCache = s.useCache !== false && !toBrowser; // temp files are deleted after sending, so they are never cached
-    const k = [url, type, q, ext, dir, !!s.extractSubtitles, !!s.downloadMetadata].join('|'); // settings that change the output are part of the key
+    const k = [url, type, q, ext, resolution, dir, !!s.extractSubtitles, !!s.downloadMetadata].join('|'); // settings that change the output are part of the key
 
     if (useCache && db.rows[k]) {
       const p = localPath(db.rows[k].url);
@@ -461,7 +465,7 @@ wss.on('connection', (ws, req) => {
     try {
       if (toBrowser) jobDir = await fsp.mkdtemp(path.join(TMP, 'job-'));
       send({ status: 'starting', msg: 'Starting download' });
-      const base = { url, type, ext, q, s, dir: jobDir || dir };
+      const base = { url, type, ext, q, s, dir: jobDir || dir, resolution };
       let r;
       try { r = await run(buildArgs({ ...base, recode: false })); }
       catch (e) {
@@ -485,6 +489,37 @@ wss.on('connection', (ws, req) => {
 
 /* ---------- startup / shutdown ---------- */
 const tools = { ytdlp: false, ffmpeg: false, aria2c: false };
+let latestRelease = null;
+const isNewerVersion = (candidate, current) => {
+  const parts = value => {
+    const match = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(value);
+    return match && match.slice(1).map(Number);
+  };
+  const candidateParts = parts(candidate), currentParts = parts(current);
+  if (!candidateParts || !currentParts) return false;
+  for (let index = 0; index < candidateParts.length; index++) {
+    if (candidateParts[index] !== currentParts[index]) return candidateParts[index] > currentParts[index];
+  }
+  return false;
+};
+async function checkForUpdate() {
+  try {
+    const response = await fetch('https://api.github.com/repos/wwoooho2-gif/YTDownloader/releases/latest', {
+      headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'YTDownloader-update-check' },
+      signal: AbortSignal.timeout(5000)
+    });
+    if (!response.ok) return;
+    const release = await response.json();
+    const version = String(release.tag_name || '').replace(/^v/, '');
+    if (!isNewerVersion(version, APP_VERSION) || !/^https:\/\/github\.com\//.test(release.html_url || '')) {
+      latestRelease = null;
+      return;
+    }
+    latestRelease = { version, url: release.html_url };
+  } catch {}
+}
+checkForUpdate();
+setInterval(checkForUpdate, 24 * 60 * 60 * 1000).unref();
 const probe = (cmd, args, key) => execFile(cmd, args, { timeout: 5000 }, e => { tools[key] = !e; });
 probe(YTDLP, ['--version'], 'ytdlp'); probe(FFMPEG, ['-version'], 'ffmpeg'); probe('aria2c', ['--version'], 'aria2c');
 setTimeout(() => {
@@ -495,7 +530,14 @@ setTimeout(() => {
 
 const shutdown = () => { flushDb(); children.forEach(killTree); process.exit(0); };
 process.on('SIGINT', shutdown); process.on('SIGTERM', shutdown);
-server.on('error', e => { console.error(e.code === 'EADDRINUSE' ? `Port ${PORT} is already in use (set PORT=...)` : e.message); process.exit(1); });
+const startupError = e => {
+  console.error(e.code === 'EADDRINUSE'
+    ? `Local server is already running at http://${HOST}:${PORT}. Stop it before starting another copy.`
+    : e.message);
+  process.exit(1);
+};
+server.on('error', startupError);
+wss.on('error', startupError);
 server.listen(PORT, HOST, () => {
   fs.rmSync(TMP, { recursive: true, force: true }); fs.mkdirSync(TMP, { recursive: true }); // start clean; only after listen succeeds so a second instance can't wipe a running one
   refreshRoots(); // TMP exists now, so its realpath is final

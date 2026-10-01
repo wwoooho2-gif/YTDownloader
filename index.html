@@ -5,11 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Download that Stuff</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="preload" href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;500;600;700&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
 <style>
 :root{color-scheme:dark;--bg:#040b12;--glow:#0e2a3a;--sf:#0d1d2a;--sf2:#122839;--edge:#24404f;--ink:#e6f1f5;--mute:#8aa0ad;--ac:#2dd4bf;--acd:#0f766e;--acink:#03231f;--gold:#f5b03a;--bad:#ff8a80;--ok:#7bd8a4;--p:0%}
 *{box-sizing:border-box}
-html{background:#02050a}
+html{background:#02050a;scroll-behavior:smooth}
 body{margin:0;min-height:100vh;color:var(--ink);font:15px/1.5 Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:transparent}
 /* dark nebula backdrop: soft coloured clouds + scanlines + vignette */
 body::before,body::after{content:"";position:fixed;inset:0;pointer-events:none}
@@ -30,12 +30,15 @@ header{display:flex;justify-content:space-between;align-items:flex-start;gap:16p
 h1{font:400 34px/1.05 "Archivo Black",Inter,sans-serif;margin:0;text-transform:uppercase;color:var(--ac);text-shadow:0 3px 0 var(--acd),0 0 22px rgba(45,212,191,.25)}
 .tag{margin:8px 0 0;color:var(--gold);font-size:14px}
 #health{font-size:12.5px;color:var(--mute);border:1px solid var(--edge);background:var(--sf);border-radius:99px;padding:5px 12px;white-space:nowrap;margin-top:6px}
+.status{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+#update{font-size:12px;color:var(--gold);text-decoration:none;border:1px solid var(--edge);background:var(--sf);border-radius:99px;padding:4px 10px;white-space:nowrap}
+#update:hover{border-color:var(--gold)}
 #health i{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--mute);margin-right:6px}
 #health.up i{background:var(--ok)}#health.down i{background:var(--bad)}
 button,input,select{font:inherit;color:inherit}
 button{cursor:pointer}
 :focus-visible{outline:2px solid var(--gold);outline-offset:2px}
-.hero{display:flex;border:2px solid var(--edge);border-radius:14px;overflow:hidden;background:linear-gradient(90deg,color-mix(in srgb,var(--ac) 30%,var(--sf)) var(--p),var(--sf) var(--p));transition:background .25s linear;box-shadow:0 8px 28px rgba(0,0,0,.35)}
+.hero{display:flex;border:2px solid var(--edge);border-radius:14px;overflow:hidden;background:linear-gradient(90deg,color-mix(in srgb,var(--ac) 30%,var(--sf)) var(--p),var(--sf) var(--p));transition:background .35s cubic-bezier(.22,1,.36,1);box-shadow:0 8px 28px rgba(0,0,0,.35)}
 .hero:focus-within{border-color:var(--ac)}
 .hero input{flex:1;min-width:0;background:transparent;border:0;padding:20px 18px;font-size:17px}
 .hero input:focus-visible{outline:none}
@@ -72,7 +75,7 @@ details[open] summary::before{transform:rotate(90deg)}
 .set .lbl{font-size:13px;color:var(--mute);margin-bottom:4px}
 .checks{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px}
 .btn{background:var(--sf2);border:2px solid var(--edge);border-radius:10px;padding:5px 11px;font-weight:600;text-decoration:none;color:var(--ink);display:inline-block;line-height:1.5}
-.btn:hover{border-color:var(--ac);color:var(--ac)}
+.btn:hover{border-color:var(--ac);color:var(--ac);transform:translateY(-1px)}
 .btn.bad{color:var(--bad)}.btn.bad:hover{border-color:var(--bad)}
 #pl{display:none;border:2px solid var(--edge);border-radius:12px;background:var(--sf);margin-bottom:22px}
 #pl.on{display:block}
@@ -88,16 +91,16 @@ details[open] summary::before{transform:rotate(90deg)}
 .meta{font-size:13px;color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .meta.err{color:var(--bad)}
 .bar{height:6px;background:var(--sf2);border-radius:3px;margin:8px 0 2px;overflow:hidden}
-.bar b{display:block;height:100%;background:var(--ac);width:0}
+.bar b{display:block;height:100%;background:var(--ac);width:0;transition:width .35s cubic-bezier(.22,1,.36,1)}
 .acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 .empty{color:var(--mute);padding:24px 0}
 .head{display:flex;justify-content:space-between;align-items:center;margin:0 0 10px}
 .head h2{font-size:15px;margin:0;color:var(--gold)}
 /* smooth menus */
-.btn,.seg button,select,.field,.go,#health{transition:background-color .18s,border-color .18s,color .18s,filter .18s,box-shadow .18s,opacity .18s}
+.btn,.seg button,select,.field,.go,#health{transition:background-color .22s cubic-bezier(.22,1,.36,1),border-color .22s cubic-bezier(.22,1,.36,1),color .22s cubic-bezier(.22,1,.36,1),filter .22s cubic-bezier(.22,1,.36,1),box-shadow .22s cubic-bezier(.22,1,.36,1),opacity .22s cubic-bezier(.22,1,.36,1),transform .22s cubic-bezier(.22,1,.36,1)}
 details.closing summary::before{transform:none}
-#pl.on{animation:plIn .28s cubic-bezier(.2,.8,.2,1)}
-@keyframes plIn{from{opacity:0;transform:translateY(-8px)}}
+#pl.on{animation:plIn .38s cubic-bezier(.16,1,.3,1);will-change:opacity,transform}
+@keyframes plIn{from{opacity:0;transform:translateY(-10px) scale(.99)}to{opacity:1;transform:none}}
 /* custom dropdown */
 .dd{position:relative}.dd[hidden]{display:none}
 .dd-btn{display:flex;align-items:center;justify-content:space-between;gap:14px;height:44px;min-width:96px;background:rgba(13,29,42,.75);border:1px solid var(--edge);border-radius:12px;padding:0 16px 0 18px;font:600 15px/1 Inter,system-ui,sans-serif}
@@ -113,8 +116,8 @@ details.closing summary::before{transform:none}
 .dd-menu li:not([aria-selected=true]){color:var(--ink)}
 .dd-menu li[aria-selected=true]::after{content:"\2713"}
 @media (prefers-reduced-motion:reduce){.dd-menu,.dd-btn::after{transition:none}}
-@media (max-width:520px){h1{font-size:26px}.it{grid-template-columns:1fr}.th{width:100%}.go{padding:0 16px}}
-@media (prefers-reduced-motion:reduce){.hero,summary::before{transition:none}}
+@media (max-width:520px){header{flex-wrap:wrap}h1{font-size:26px}.it{grid-template-columns:1fr}.th{width:100%}.go{padding:0 16px}}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}.hero,summary::before,.bar b,.btn,.seg button,select,.field,.go,#health{transition:none}#pl.on{animation:none}.btn:hover{transform:none}}
 
 /* tabs + editor */
 [hidden]{display:none!important}
@@ -161,7 +164,7 @@ details.closing summary::before{transform:none}
 <body>
 <canvas id="bubbles" aria-hidden="true"></canvas>
 <main>
-<header><div><h1>Download that Stuff</h1></div><span id="health"><i></i><span>Checking backend</span></span></header>
+<header><div><h1>Download that Stuff</h1></div><div class="status"><span id="health"><i></i><span>Checking backend</span></span><a id="update" hidden target="_blank" rel="noopener">Update available</a></div></header>
 
 <div class="seg tabs" id="tabs" role="group" aria-label="Section">
   <button type="button" data-t="dl" aria-pressed="true">Download</button>
@@ -181,6 +184,12 @@ details.closing summary::before{transform:none}
     <button type="button" data-v="video_only" aria-pressed="false">Video, no sound</button>
   </div>
   <select id="ext" aria-label="Format"></select>
+  <select id="resolution" aria-label="Maximum resolution">
+    <option value="best" selected>Best available</option>
+    <option value="2160">Up to 2160p</option><option value="1440">Up to 1440p</option>
+    <option value="1080">Up to 1080p</option><option value="720">Up to 720p</option>
+    <option value="480">Up to 480p</option><option value="360">Up to 360p</option>
+  </select>
   <select id="q" aria-label="Audio bitrate" hidden>
     <option value="128">128 kbps</option><option value="192" selected>192 kbps</option>
     <option value="256">256 kbps</option><option value="320">320 kbps</option>
@@ -289,7 +298,7 @@ let settings={...DEF,...load('dl.settings',{})};
 if(load('dl.settingsV',1)<3){Object.assign(settings,{organizeTypes:false,organizeChannel:false,extractSubtitles:false,downloadMetadata:false,useCache:true,autoBrowser:true});save('dl.settings',settings);save('dl.settingsV',3)} // one-time: apply the new defaults over older saved values (download folder is kept)
 let type='video_audio';
 let items=load('dl.history',[]).map(i=>({...i,status:'done'}));
-const PARALLEL=3;let running=0; // matches the server's default MAX_JOBS
+const PARALLEL=8;let running=0; // matches the server's default MAX_JOBS
 
 /* ---------- settings ---------- */
 const flags=['organizeTypes','organizeChannel','extractSubtitles','downloadMetadata','useCache','autoBrowser'];
@@ -309,15 +318,20 @@ function setType(t){
   document.querySelectorAll('#type button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===t));
   $('#ext').innerHTML=EXTS[t].map(e=>`<option>${e}</option>`).join('');
   $('#q').hidden=t!=='audio_only';
+  $('#resolution').hidden=t==='audio_only';
 }
 document.querySelectorAll('#type button').forEach(b=>b.onclick=()=>setType(b.dataset.v));
 setType('video_audio');
 
 /* ---------- health ---------- */
 async function health(){
-  const h=$('#health'),t=h.querySelector('span');
-  try{const r=await fetch(API+'/api/health');if(!r.ok)throw 0;h.className='up';t.textContent='Backend connected'}
-  catch{h.className='down';t.textContent='Backend offline. Run npm start'}
+  const h=$('#health'),t=h.querySelector('span'),u=$('#update');
+  try{
+    const r=await fetch(API+'/api/health');if(!r.ok)throw 0;
+    const info=await r.json();h.className='up';t.textContent='Backend connected';
+    if(info.update){u.href=info.update.url;u.textContent=`Update ${info.update.version} available`;u.hidden=false}else u.hidden=true;
+  }
+  catch{h.className='down';t.textContent='Backend offline. Run npm start';u.hidden=true}
 }
 health();setInterval(health,15000);
 
@@ -396,7 +410,7 @@ function checkGroup(g){
 function persist(){save('dl.history',items.filter(i=>i.status==='done').slice(0,30).map(({id,url,title,file,type,browserOnly}) => ({id,url,title,file,type,browserOnly})))}
 function enqueue(url,group){
   items.unshift({id:Date.now()+Math.random(),url,title:url,status:'queued',pct:0,msg:'Waiting',type,group,
-    ext:$('#ext').value,q:type==='audio_only'?$('#q').value:'best'});
+    ext:$('#ext').value,q:type==='audio_only'?$('#q').value:'best',resolution:type==='audio_only'?'best':$('#resolution').value});
   render();pump();
 }
 function pump(){
@@ -413,7 +427,7 @@ function run(it){
     const toBrowser=!!settings.autoBrowser; // fixed at start so the server and this page agree even if the box is toggled mid-download
     let ws;
     try{ws=new WebSocket(WSU())}catch{it.status='error';it.msg='Can\u2019t reach the backend. Start it with npm start.';render();return done()}
-    ws.onopen=()=>ws.send(JSON.stringify({url:it.url,type:it.type,ext:it.ext,quality:it.q,allowPlaylist:false,group:it.group&&{id:it.group.id,title:it.group.title},settings:{...settings,autoBrowser:toBrowser}}));
+    ws.onopen=()=>ws.send(JSON.stringify({url:it.url,type:it.type,ext:it.ext,quality:it.q,resolution:it.resolution,allowPlaylist:false,group:it.group&&{id:it.group.id,title:it.group.title},settings:{...settings,autoBrowser:toBrowser}}));
     ws.onmessage=e=>{
       const m=JSON.parse(e.data);
       if(m.status==='completed'){it.file=m.file;it.title=m.file.title;it.status='done';it.pct=100;it.browserOnly=toBrowser;it.deferred=toBrowser&&!!it.group&&!it.group.zipped;persist();if(toBrowser&&!it.deferred)saveToDevice(it)}
@@ -564,7 +578,7 @@ render();
 })();
 
 /* ---------- custom dropdowns (replace the ugly native select popup) ---------- */
-document.querySelectorAll('#ext,#q').forEach(sel=>{
+document.querySelectorAll('#ext,#q,#resolution').forEach(sel=>{
   sel.style.display='none';
   const dd=document.createElement('div');dd.className='dd';
   const btn=document.createElement('button');btn.type='button';btn.className='dd-btn';

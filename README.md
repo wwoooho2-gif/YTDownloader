@@ -39,3 +39,7 @@ A web application for downloading, trimming, and editing video and audio content
      ```text
      http://localhost:8000/
      ```
+
+## Update notifications
+
+The app checks GitHub for a newer published release at startup and every 24 hours. To notify users of an update, bump the version in `package.json` and publish a GitHub release with a matching `vX.Y.Z` tag. The app links to the release but does not install updates automatically.

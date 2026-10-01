@@ -124,38 +124,9 @@ details.closing summary::before{transform:none}
 @media (max-width:520px){header{flex-wrap:wrap}h1{font-size:26px}.it{grid-template-columns:1fr}.th{width:100%}.go{padding:0 16px}}
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}.hero,summary::before,.bar b,.btn,.seg button,select,.field,.go,#health{transition:none}#pl.on{animation:none}.btn:hover{transform:none}}
 
-/* tabs + editor */
 [hidden]{display:none!important}
-.tabs{margin:0 0 22px;width:max-content;max-width:100%}
-.btn:disabled{opacity:.45;cursor:default;pointer-events:none}
 .btn.pri{background:var(--ac);border-color:var(--ac);color:var(--acink);font-weight:700}
 .btn.pri:hover{filter:brightness(1.08);color:var(--acink)}
-.drop{border:2px dashed var(--edge);border-radius:14px;padding:38px 20px;text-align:center;color:var(--mute);background:rgba(13,29,42,.5);transition:border-color .18s,background-color .18s}
-.drop.over{border-color:var(--ac);background:color-mix(in srgb,var(--ac) 10%,var(--sf))}
-.drop .big{font:400 18px/1.2 "Archivo Black",Inter,sans-serif;text-transform:uppercase;color:var(--ink);margin:0 0 6px}
-.drop .btn{margin-top:14px}
-.recent{margin-top:22px;display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
-.recent .lbl{width:100%;font-size:13px;color:var(--mute)}
-.rec{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ed-top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:0 0 10px}
-.ed-top .tt{color:var(--gold)}
-.ed-stage{background:#000;border:2px solid var(--edge);border-radius:12px;overflow:hidden}
-.ed-stage video{display:block;width:100%;max-height:52vh;background:#000}
-.ed-stage.aud video{height:54px}
-.tl{position:relative;height:64px;margin:14px 0 6px;border:2px solid var(--edge);border-radius:10px;background:var(--sf);overflow:hidden;cursor:pointer;touch-action:none;user-select:none}
-.tl .sg{position:absolute;top:0;bottom:0;background:color-mix(in srgb,var(--ac) 38%,var(--sf2))}
-.tl .sg.off{background:repeating-linear-gradient(135deg,rgba(255,138,128,.26) 0 6px,rgba(255,138,128,.08) 6px 12px)}
-.tl .rg{position:absolute;top:0;bottom:0;background:rgba(245,176,58,.22);border-left:2px solid var(--gold);border-right:2px solid var(--gold)}
-.tl .ph{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;background:#fff;box-shadow:0 0 6px rgba(255,255,255,.6);pointer-events:none}
-.tlbar{display:flex;justify-content:space-between;gap:10px;font-size:13px;color:var(--mute);font-variant-numeric:tabular-nums;margin-bottom:14px}
-.ed-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 12px}
-.ed-row .lbl{font-size:13px;color:var(--mute);margin-right:2px}
-.field.tm{width:112px;flex:none;font-variant-numeric:tabular-nums}
-.ed-hint{font-size:12.5px;color:var(--mute);margin:0 0 18px}
-.ed-out{border-top:2px solid var(--edge);padding-top:16px;margin-top:6px}
-.ed-out .seg{height:40px}
-.okbox{margin-top:14px;padding:12px 14px;border:2px solid var(--edge);border-radius:12px;background:var(--sf)}
-.okbox .tt{white-space:normal;overflow-wrap:anywhere}
 /* in-app player */
 .wdlg{border:2px solid var(--edge);border-radius:14px;background:var(--sf);color:var(--ink);padding:0;width:min(960px,94vw);max-width:none;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.6)}
 .wdlg::backdrop{background:rgba(0,0,0,.75);backdrop-filter:blur(3px)}
@@ -172,11 +143,6 @@ details.closing summary::before{transform:none}
 </div>
 <main inert>
 <header><div><h1>Download that Stuff</h1></div><div class="status"><span id="health"><i></i><span>Checking backend</span></span></div></header>
-
-<div class="seg tabs" id="tabs" role="group" aria-label="Section">
-  <button type="button" data-t="dl" aria-pressed="true">Download</button>
-  <button type="button" data-t="ed" aria-pressed="false">Editor</button>
-</div>
 
 <div id="pane-dl">
 <form class="hero" id="f">
@@ -231,57 +197,6 @@ details.closing summary::before{transform:none}
 <div class="empty" id="empty">Nothing on the line yet. Paste a link above to start.</div>
 </div>
 
-<div id="pane-ed" hidden>
-  <div class="drop" id="ed-drop">
-    <p class="big">Drop a video or audio file</p>
-    <div>Trim the ends and cut out the parts you don&rsquo;t want.</div>
-    <button type="button" class="btn pri" id="ed-pick">Choose a file</button>
-    <input type="file" id="ed-file" accept="video/*,audio/*,.mkv,.opus,.m4a" hidden>
-    <div class="meta err" id="ed-derr" style="margin-top:12px"></div>
-    <div class="recent" id="ed-recent"></div>
-  </div>
-
-  <div id="ed-work" hidden>
-    <div class="ed-top"><span class="tt" id="ed-name"></span><button type="button" class="btn" id="ed-close">Close file</button></div>
-    <div class="ed-stage" id="ed-stage"><video id="ed-v" controls playsinline preload="auto"></video></div>
-
-    <div class="tl" id="ed-tl" aria-label="Timeline"></div>
-    <div class="tlbar"><span id="ed-time">0:00.00 / 0:00.00</span><span id="ed-info"></span></div>
-
-    <div class="ed-row">
-      <span class="lbl">Selection</span>
-      <input class="field tm" id="ed-from" placeholder="From" aria-label="Selection start">
-      <button type="button" class="btn" id="ed-fnow" title="Set to the playhead (I)">Use playhead</button>
-      <input class="field tm" id="ed-to" placeholder="To" aria-label="Selection end">
-      <button type="button" class="btn" id="ed-tnow" title="Set to the playhead (O)">Use playhead</button>
-    </div>
-    <div class="ed-row">
-      <button type="button" class="btn bad" id="ed-rm" title="Delete">Remove selection</button>
-      <button type="button" class="btn" id="ed-only">Keep only selection</button>
-      <button type="button" class="btn" id="ed-rs">Restore selection</button>
-      <button type="button" class="btn" id="ed-ts">Trim start to playhead</button>
-      <button type="button" class="btn" id="ed-te">Trim end to playhead</button>
-      <button type="button" class="btn" id="ed-reset">Reset</button>
-    </div>
-    <p class="ed-hint">Drag on the timeline to select a part, then remove it. Click to move the playhead. Space plays, I and O set the selection, Delete removes it. Removed parts are skipped during preview.</p>
-
-    <div class="ed-out">
-      <div class="ed-row">
-        <div class="seg" id="ed-mode" role="group" aria-label="Export mode">
-          <button type="button" data-v="precise" aria-pressed="true">Precise</button>
-          <button type="button" data-v="fast" aria-pressed="false">Fast</button>
-        </div>
-        <button type="button" class="btn pri" id="ed-go">Export</button>
-        <button type="button" class="btn bad" id="ed-cancel" hidden>Cancel</button>
-      </div>
-      <div class="meta" style="white-space:normal">Precise re-encodes so cuts land exactly where you set them. Fast just copies the video, which is much quicker, but cuts snap to the nearest keyframe.</div>
-      <div class="bar" id="ed-bar" hidden><b></b></div>
-      <div class="meta" id="ed-msg"></div>
-      <div class="meta err" id="ed-err"></div>
-      <div id="ed-res"></div>
-    </div>
-  </div>
-</div>
 </main>
 
 <dialog class="wdlg" id="wdlg" aria-label="Video player">
@@ -322,6 +237,11 @@ if(load('dl.settingsV',3)<5){delete settings.fastDownload;save('dl.settings',set
 let type='video_audio';
 let items=load('dl.history',[]).map(i=>({...i,status:'done'}));
 const PARALLEL=8;let running=0; // matches the server's default MAX_JOBS
+let progressRenderTimer=null;
+function scheduleProgressRender(){
+  if(progressRenderTimer!==null)return;
+  progressRenderTimer=setTimeout(()=>{progressRenderTimer=null;render()},100);
+}
 
 /* ---------- settings ---------- */
 const flags=['organizeTypes','organizeChannel','extractSubtitles','downloadMetadata','useCache','autoBrowser','replayIntroOnReload'];
@@ -452,10 +372,9 @@ function run(it){
     ws.onopen=()=>ws.send(JSON.stringify({url:it.url,type:it.type,ext:it.ext,quality:it.q,resolution:it.resolution,allowPlaylist:false,group:it.group&&{id:it.group.id,title:it.group.title},settings:{...settings,autoBrowser:toBrowser}}));
     ws.onmessage=e=>{
       const m=JSON.parse(e.data);
-      if(m.status==='completed'){it.file=m.file;it.title=m.file.title;it.status='done';it.pct=100;it.browserOnly=toBrowser;it.deferred=toBrowser&&!!it.group&&!it.group.zipped;persist();if(toBrowser&&!it.deferred)saveToDevice(it)}
-      else if(m.status==='error'){it.status='error';it.msg=m.msg}
-      else if(m.msg!==undefined){if(typeof m.percent==='number')it.pct=m.percent;if(m.status!=='connected')it.msg=m.msg}
-      render();
+      if(m.status==='completed'){it.file=m.file;it.title=m.file.title;it.status='done';it.pct=100;it.browserOnly=toBrowser;it.deferred=toBrowser&&!!it.group&&!it.group.zipped;persist();if(toBrowser&&!it.deferred)saveToDevice(it);render()}
+      else if(m.status==='error'){it.status='error';it.msg=m.msg;render()}
+      else if(m.msg!==undefined&&m.status!=='connected'){if(typeof m.percent==='number')it.pct=m.percent;it.msg=m.msg;scheduleProgressRender()}
     };
     ws.onerror=()=>{if(it.status==='active'){it.status='error';it.msg='Can\u2019t reach the backend. Start it with npm start.'}render()};
     ws.onclose=()=>{if(it.status==='active'){it.status='error';it.msg='The connection closed before the download finished.'}render();done()};
@@ -476,7 +395,6 @@ function render(){
         `<button class="btn pri" data-a="watch" data-id="${i.id}">${i.type==='audio_only'?'Listen':'Watch'}</button>
          <button class="btn" data-a="save" data-id="${i.id}">Save to device</button>
          <a class="btn" href="${esc(fileUrl(i.file.url))}" target="_blank" rel="noopener">Open file</a>
-         <button class="btn" data-a="edit" data-id="${i.id}">Edit</button>
          <button class="btn" data-a="show" data-id="${i.id}">Show in folder</button>
          <button class="btn bad" data-a="del" data-id="${i.id}">Delete file</button>`;
     }else if(i.status==='error'){
@@ -498,7 +416,6 @@ $('#list').onclick=async e=>{
   else if(a==='save')saveToDevice(it);
   else if(a==='watch'){openPlayer(it);return}
   else if(a==='preview'){togglePreview(it);return}
-  else if(a==='edit'){window.edOpenItem&&window.edOpenItem(it);return}
   else if(a==='retry'){it.status='queued';it.pct=0;it.msg='Waiting';pump()}
   else if(a==='show'){try{await post('/api/open_location',{filepath:it.file.url})}catch{}}
   else if(a==='del'){
@@ -605,221 +522,6 @@ document.querySelectorAll('#ext,#q,#resolution').forEach(sel=>{
   dd.hidden=sel.hidden;build();
 });
 
-/* ---------- editor: trim and cut ---------- */
-(()=>{
-const EPS=.02,v=$('#ed-v'),tl=$('#ed-tl'),panes={dl:$('#pane-dl'),ed:$('#pane-ed')};
-const ed={dur:0,segs:[],rng:null,audio:false,mode:'precise',busy:false,name:'',ext:'mp4',file:null,objUrl:null,serverUrl:null,abort:null,raf:0};
-const clamp=(x,a,b)=>Math.min(b,Math.max(a,x));
-const fmt=t=>{t=Math.floor(Math.max(0,t||0)*100)/100;const h=Math.floor(t/3600),m=Math.floor(t%3600/60),s=t%60;return(h?h+':'+String(m).padStart(2,'0'):m)+':'+s.toFixed(2).padStart(5,'0')};
-const fmtShort=t=>{t=Math.round(t);const h=Math.floor(t/3600),m=Math.floor(t%3600/60),s=t%60;return(h?h+':'+String(m).padStart(2,'0'):m)+':'+String(s).padStart(2,'0')};
-const parse=x=>{x=String(x).trim();if(!x)return NaN;const p=x.split(':').map(Number);return p.length>3||p.some(n=>!Number.isFinite(n)||n<0)?NaN:p.reduce((a,n)=>a*60+n,0)};
-
-/* tabs */
-function setTab(t){
-  document.querySelectorAll('#tabs button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.t===t));
-  panes.dl.hidden=t!=='dl';panes.ed.hidden=t!=='ed';
-  if(t!=='ed'&&!v.paused)v.pause();
-  if(t==='ed')recent();
-}
-document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>setTab(b.dataset.t));
-
-/* open / close */
-function recent(){
-  const r=items.filter(i=>i.status==='done'&&i.file&&!i.browserOnly&&!i.missing&&!i.deferred).slice(0,6);
-  $('#ed-recent').innerHTML=r.length?'<div class="lbl">Or edit a finished download</div>'+r.map(i=>`<button type="button" class="btn rec" data-id="${i.id}" title="${esc(i.title)}">${esc(i.title)}</button>`).join(''):'';
-}
-$('#ed-recent').onclick=e=>{const b=e.target.closest('button[data-id]'),it=b&&items.find(i=>String(i.id)===b.dataset.id);if(it)openItem(it)};
-function unload(){
-  if(ed.abort)ed.abort();
-  if(ed.objUrl)URL.revokeObjectURL(ed.objUrl);
-  v.pause();v.removeAttribute('src');v.load();
-  Object.assign(ed,{dur:0,segs:[],rng:null,file:null,objUrl:null,serverUrl:null});
-}
-function showDrop(msg){$('#ed-work').hidden=true;$('#ed-drop').hidden=false;$('#ed-derr').textContent=msg||'';recent()}
-function fail(msg){unload();showDrop(msg)}
-function start(src,name,ext){
-  $('#ed-err').textContent='';$('#ed-res').innerHTML='';$('#ed-msg').textContent='';$('#ed-bar').hidden=true;$('#ed-derr').textContent='';
-  ed.name=name;ed.ext=ext;
-  $('#ed-drop').hidden=true;$('#ed-work').hidden=false;$('#ed-name').textContent=name;$('#ed-name').title=name;
-  draw();v.src=src;v.load();
-}
-function openFile(f){
-  if(ed.busy||!f)return;
-  unload();
-  const m=/\.([a-z0-9]{2,5})$/i.exec(f.name),mt={'audio/mpeg':'mp3','audio/mp4':'m4a','video/quicktime':'mov','video/x-matroska':'mkv'};
-  const ext=(m?m[1]:mt[f.type]||(f.type.split('/')[1]||'mp4').replace(/[^a-z0-9]/g,'').slice(0,5)||'mp4').toLowerCase();
-  ed.file=f;ed.objUrl=URL.createObjectURL(f);
-  start(ed.objUrl,f.name.replace(/\.[^.]+$/,'')||'Untitled',ext);
-}
-function openItem(it){
-  if(ed.busy)return;
-  unload();
-  let ext='mp4';try{ext=(/\.([a-z0-9]{2,5})$/i.exec(new URL(it.file.url).searchParams.get('path')||'')||[])[1]||'mp4'}catch{}
-  ed.serverUrl=it.file.url;
-  setTab('ed');
-  start(fileUrl(it.file.url),it.title||'Untitled',ext.toLowerCase());
-}
-window.edOpenItem=openItem;
-$('#ed-pick').onclick=()=>$('#ed-file').click();
-$('#ed-file').onchange=e=>{openFile(e.target.files[0]);e.target.value=''};
-$('#ed-close').onclick=()=>{if(ed.busy&&!confirm('Stop the export and close this file?'))return;unload();showDrop()};
-
-/* drag and drop */
-const dz=$('#ed-drop');
-['dragenter','dragover'].forEach(n=>panes.ed.addEventListener(n,e=>{if(!e.dataTransfer||![...e.dataTransfer.types].includes('Files'))return;e.preventDefault();dz.classList.add('over')}));
-['dragleave','drop'].forEach(n=>panes.ed.addEventListener(n,e=>{if(n==='dragleave'&&panes.ed.contains(e.relatedTarget))return;dz.classList.remove('over')}));
-panes.ed.addEventListener('drop',e=>{const f=e.dataTransfer&&e.dataTransfer.files[0];if(!f)return;e.preventDefault();openFile(f)});
-
-/* player */
-v.onloadedmetadata=()=>{
-  if(!v.getAttribute('src'))return;
-  if(!isFinite(v.duration)||v.duration<=0)return fail('Couldn\u2019t read the length of this file. Try an mp4, webm or mp3.');
-  ed.dur=v.duration;ed.segs=[{s:0,e:ed.dur,off:false}];ed.rng=null;
-  ed.audio=v.videoWidth===0;ed.mode=ed.audio?'fast':'precise';
-  $('#ed-stage').classList.toggle('aud',ed.audio);
-  draw();
-};
-v.onerror=()=>{if(v.getAttribute('src'))fail('Your browser can\u2019t play this file, so it can\u2019t be edited here. Try an mp4, webm or mp3.')};
-const tick=()=>{
-  ed.raf=0;
-  if(v.paused||v.ended){phMove();return}
-  const t=v.currentTime,s=ed.segs.find(x=>t>=x.s&&t<x.e);
-  if(s&&s.off){const n=ed.segs.find(x=>!x.off&&x.s>=s.e-EPS);if(n)v.currentTime=n.s;else v.pause()} // skip removed parts while previewing
-  phMove();ed.raf=requestAnimationFrame(tick);
-};
-v.onplay=()=>{if(!ed.raf)ed.raf=requestAnimationFrame(tick)};
-v.onpause=v.onseeked=v.ontimeupdate=()=>phMove();
-
-/* segments: a list of contiguous parts covering the whole file, each kept or removed */
-function splitAt(t){
-  const i=ed.segs.findIndex(s=>t>s.s+EPS&&t<s.e-EPS);if(i<0)return;
-  const s=ed.segs[i];ed.segs.splice(i,1,{...s,e:t},{...s,s:t});
-}
-function setRange(a,b,off){
-  a=Math.max(0,a);b=Math.min(ed.dur,b);if(b-a<EPS)return;
-  splitAt(a);splitAt(b);
-  ed.segs.forEach(s=>{if(s.s>=a-EPS&&s.e<=b+EPS)s.off=off});
-  const o=[];for(const s of ed.segs){const l=o[o.length-1];if(l&&l.off===s.off)l.e=s.e;else o.push({...s})}
-  ed.segs=o;
-}
-const sel=()=>ed.rng&&ed.rng.b-ed.rng.a>=EPS?ed.rng:null;
-const act=fn=>e=>{if(e&&e.currentTarget)e.currentTarget.blur();if(!ed.dur||ed.busy)return;fn();draw()};
-$('#ed-rm').onclick=act(()=>{const r=sel();if(r){setRange(r.a,r.b,true);ed.rng=null}});
-$('#ed-only').onclick=act(()=>{const r=sel();if(r){setRange(0,r.a,true);setRange(r.b,ed.dur,true);ed.rng=null}});
-$('#ed-rs').onclick=act(()=>{const r=sel();if(r){setRange(r.a,r.b,false);ed.rng=null}});
-$('#ed-ts').onclick=act(()=>setRange(0,v.currentTime,true));
-$('#ed-te').onclick=act(()=>setRange(v.currentTime,ed.dur,true));
-$('#ed-reset').onclick=act(()=>{ed.segs=[{s:0,e:ed.dur,off:false}];ed.rng=null});
-const setFrom=t=>{const a=clamp(t,0,ed.dur);ed.rng={a,b:ed.rng&&ed.rng.b>a?ed.rng.b:ed.dur}};
-const setTo=t=>{const b=clamp(t,0,ed.dur);ed.rng={a:ed.rng&&ed.rng.a<b?ed.rng.a:0,b}};
-$('#ed-fnow').onclick=act(()=>setFrom(v.currentTime));
-$('#ed-tnow').onclick=act(()=>setTo(v.currentTime));
-$('#ed-from').onchange=e=>{const t=parse(e.target.value);if(ed.dur&&Number.isFinite(t))setFrom(t);draw()};
-$('#ed-to').onchange=e=>{const t=parse(e.target.value);if(ed.dur&&Number.isFinite(t))setTo(t);draw()};
-document.querySelectorAll('#ed-mode button').forEach(b=>b.onclick=()=>{ed.mode=b.dataset.v;draw()});
-
-/* timeline: click = seek, drag = select a range */
-tl.onpointerdown=e=>{
-  if(!ed.dur)return;
-  tl.setPointerCapture(e.pointerId);
-  const r=tl.getBoundingClientRect(),T=x=>clamp((x-r.left)/r.width*ed.dur,0,ed.dur),x0=e.clientX,t0=T(x0);let drag=false;
-  tl.onpointermove=ev=>{if(!drag&&Math.abs(ev.clientX-x0)<4)return;drag=true;const t1=T(ev.clientX);ed.rng={a:Math.min(t0,t1),b:Math.max(t0,t1)};draw()};
-  tl.onpointerup=tl.onpointercancel=()=>{tl.onpointermove=tl.onpointerup=tl.onpointercancel=null;if(!drag){ed.rng=null;v.currentTime=t0}draw()};
-};
-
-/* keyboard */
-addEventListener('keydown',e=>{
-  if(panes.ed.hidden||!ed.dur||e.ctrlKey||e.metaKey||e.altKey||e.target.closest('input,textarea,select,button,video'))return;
-  const k=e.key;
-  if(k===' '){e.preventDefault();v.paused?v.play():v.pause()}
-  else if(k==='ArrowLeft'||k==='ArrowRight'){e.preventDefault();v.currentTime=clamp(v.currentTime+(k==='ArrowRight'?1:-1)*(e.shiftKey?5:1),0,ed.dur)}
-  else if(k==='i'||k==='I'){setFrom(v.currentTime);draw()}
-  else if(k==='o'||k==='O'){setTo(v.currentTime);draw()}
-  else if((k==='Delete'||k==='Backspace')&&!ed.busy){e.preventDefault();$('#ed-rm').click()}
-  else if(k==='Escape'){ed.rng=null;draw()}
-});
-
-/* drawing */
-function phMove(){
-  const p=$('#ed-ph');if(p)p.style.left=(v.currentTime/(ed.dur||1)*100)+'%';
-  $('#ed-time').textContent=`${fmt(v.currentTime)} / ${fmt(ed.dur)}`;
-}
-function draw(){
-  const d=ed.dur||1,r=sel();
-  tl.innerHTML=ed.segs.map(s=>`<div class="sg${s.off?' off':''}" style="left:${s.s/d*100}%;width:${(s.e-s.s)/d*100}%"></div>`).join('')
-    +(r?`<div class="rg" style="left:${r.a/d*100}%;width:${(r.b-r.a)/d*100}%"></div>`:'')+'<div class="ph" id="ed-ph"></div>';
-  phMove();
-  $('#ed-from').value=r?fmt(r.a):'';$('#ed-to').value=r?fmt(r.b):'';
-  const keep=ed.segs.filter(s=>!s.off),kt=keep.reduce((t,s)=>t+s.e-s.s,0);
-  $('#ed-info').textContent=ed.dur?`Keeping ${fmtShort(kt)} of ${fmtShort(ed.dur)}`+(keep.length>1?` in ${keep.length} parts`:'')+(kt<ed.dur-EPS?` \u00b7 removing ${fmtShort(ed.dur-kt)}`:''):'';
-  ['ed-rm','ed-only','ed-rs'].forEach(i=>$('#'+i).disabled=!r||ed.busy);
-  ['ed-ts','ed-te'].forEach(i=>$('#'+i).disabled=!ed.dur||ed.busy);
-  $('#ed-reset').disabled=ed.busy||!(ed.segs.length>1||(ed.segs[0]&&ed.segs[0].off));
-  $('#ed-go').disabled=ed.busy||!keep.length;
-  $('#ed-go').hidden=ed.busy;$('#ed-cancel').hidden=!ed.busy;
-  document.querySelectorAll('#ed-mode button').forEach(b=>{b.setAttribute('aria-pressed',b.dataset.v===ed.mode);b.disabled=ed.busy});
-}
-
-/* export */
-const setProg=(p,t)=>{$('#ed-bar').hidden=false;$('#ed-bar').firstElementChild.style.width=clamp(p,0,100)+'%';$('#ed-msg').textContent=t};
-$('#ed-cancel').onclick=()=>ed.abort&&ed.abort();
-$('#ed-go').onclick=async()=>{
-  const keep=ed.segs.filter(s=>!s.off);
-  if(!keep.length||ed.busy)return;
-  ed.busy=true;$('#ed-res').innerHTML='';$('#ed-err').textContent='';setProg(0,'Preparing');draw();
-  const ctl=new AbortController();let xhr=null;
-  ed.abort=()=>{ctl.abort();xhr&&xhr.abort()};
-  let ok=false;
-  try{
-    let src=ed.serverUrl;
-    if(src){try{const r=await post('/api/file_exists',{filepath:src});if(!r.exists)src=null}catch{throw new Error('Can\u2019t reach the backend. Start it with npm start.')}}
-    if(!src&&!ed.file)throw new Error('The original file was moved or deleted.');
-    if(!src){ // picked from this computer: send it to the local backend so ffmpeg can read it
-      src=await new Promise((res,rej)=>{
-        xhr=new XMLHttpRequest();xhr.open('POST',API+'/api/edit_upload?ext='+encodeURIComponent(ed.ext));
-        xhr.setRequestHeader('Content-Type','application/octet-stream');
-        xhr.upload.onprogress=e=>{if(e.lengthComputable)setProg(e.loaded/e.total*100,'Loading file '+Math.round(e.loaded/e.total*100)+'%')};
-        xhr.onload=()=>{let j={};try{j=JSON.parse(xhr.responseText)}catch{}xhr.status===200&&j.url?res(j.url):rej(new Error(j.detail||'Upload failed'))};
-        xhr.onerror=()=>rej(new Error('Can\u2019t reach the backend. Start it with npm start.'));
-        xhr.onabort=()=>rej(new DOMException('Cancelled','AbortError'));
-        xhr.send(ed.file);
-      });
-      ed.serverUrl=src;xhr=null;
-    }
-    setProg(0,'Starting');
-    const res=await fetch(API+'/api/edit',{method:'POST',headers:{'Content-Type':'application/json'},signal:ctl.signal,
-      body:JSON.stringify({filepath:src,name:ed.name,mode:ed.mode,segments:keep.map(s=>[+s.s.toFixed(3),+s.e.toFixed(3)])})});
-    if(!res.ok){const j=await res.json().catch(()=>({}));throw new Error(j.detail||'Export failed')}
-    const rd=res.body.getReader(),dec=new TextDecoder();let buf='';
-    for(;;){
-      const {done,value}=await rd.read();if(done)break;
-      buf+=dec.decode(value,{stream:true});const ls=buf.split('\n');buf=ls.pop();
-      for(const l of ls){
-        if(!l.trim())continue;const m=JSON.parse(l);
-        if(m.status==='working')setProg(m.percent||0,(m.msg||'Working')+(m.percent?' '+Math.round(m.percent)+'%':''));
-        else if(m.status==='error')throw new Error(m.msg);
-        else if(m.status==='completed'){ok=true;finish(m)}
-      }
-    }
-    if(!ok)throw new Error('The export stopped before it finished.');
-  }catch(err){
-    $('#ed-msg').textContent='';
-    if(err.name==='AbortError')$('#ed-msg').textContent='Cancelled.';else $('#ed-err').textContent=err.message;
-    $('#ed-bar').hidden=true;
-  }finally{ed.busy=false;ed.abort=null;draw()}
-};
-function finish(m){
-  const f=m.file,it={id:Date.now()+Math.random(),url:'',title:f.title,status:'done',pct:100,type:f.type,file:f,browserOnly:!!m.browserOnly};
-  items.unshift(it);persist();render();
-  $('#ed-bar').hidden=true;$('#ed-msg').textContent='';
-  const box=$('#ed-res');
-  box.innerHTML=`<div class="okbox"><div class="tt">Done: ${esc(f.title)}</div>
-    <div class="meta" style="white-space:normal;overflow-wrap:anywhere">${m.browserOnly?'Sent to your browser\u2019s downloads.':'Saved to '+esc(m.path)}</div>
-    ${m.browserOnly?'':'<div class="acts"><button type="button" class="btn" id="ed-rsave">Save to device</button><button type="button" class="btn" id="ed-rshow">Show in folder</button></div>'}</div>`;
-  if(m.browserOnly)saveToDevice(it);
-  else{$('#ed-rsave').onclick=()=>saveToDevice(it);$('#ed-rshow').onclick=async()=>{try{await post('/api/open_location',{filepath:f.url})}catch{}}}
-}
-})();
 </script>
 </body>
 </html>

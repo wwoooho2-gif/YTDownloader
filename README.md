@@ -1,6 +1,6 @@
 # Download That Stuff
 
-A web application for downloading, trimming, and editing video and audio content.
+A web application for downloading video and audio content.
 
 ---
 

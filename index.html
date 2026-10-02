@@ -214,7 +214,11 @@ details.closing summary::before{transform:none}
 
 <script>
 const $=s=>document.querySelector(s);
-if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js').catch(()=>{});
+if('serviceWorker' in navigator){
+  const workerUrl=new URL('./sw.js',location.href).href;
+  navigator.serviceWorker.getRegistrations().then(registrations=>Promise.all(registrations.filter(registration=>[registration.active,registration.waiting,registration.installing].some(worker=>worker?.scriptURL===workerUrl)).map(registration=>registration.unregister()))).catch(()=>{});
+}
+if('caches' in window)caches.delete('download-that-stuff-shell-v1').catch(()=>{});
 const intro=$('#intro'),app=$('main');
 const replayIntroOnReload=(()=>{try{return JSON.parse(localStorage.getItem('dl.settings')||'{}').replayIntroOnReload===true}catch{return false}})();
 let introTimer;
@@ -227,8 +231,8 @@ function finishIntro(){
 function showOfflineIntro(){
   clearTimeout(introTimer);
   $('#intro-kicker').textContent='BACKEND OFFLINE';
-  $('#intro-status').textContent='START THE SERVER TO DOWNLOAD';
-  $('#intro-copy').textContent='Start the local downloader from its project folder with npm start. Your downloads and settings stay on this device.';
+  $('#intro-status').textContent='DOWNLOADER UNAVAILABLE';
+  $('#intro-copy').textContent='The local downloader is offline. Your downloads and settings stay on this device.';
   $('#intro-copy').hidden=false;$('#intro-actions').hidden=false;
   intro.hidden=false;intro.classList.remove('intro-out');app.inert=true;
   $('#intro-retry').focus({preventScroll:true});
@@ -240,7 +244,6 @@ try{
 }catch{introTimer=setTimeout(finishIntro,2200)}
 const HOSTED=/\.github\.io$/.test(location.hostname)||!location.protocol.startsWith('http');
 let API=((()=>{try{return localStorage.getItem('dl.backend')}catch{}})()||(HOSTED?'http://localhost:8000':location.origin)).replace(/\/+$/,'');
-const SUPERVISOR_API=(()=>{try{const u=new URL(API);u.port=String((Number(u.port)||8000)+1);return u.origin}catch{return 'http://127.0.0.1:8001'}})();
 const WSU=()=>API.replace(/^http/,'ws')+'/ws/download';
 const EXTS={video_audio:['mp4','webm','mkv'],video_only:['mp4','webm','mkv'],audio_only:['mp3','m4a','ogg','opus','flac','wav']};
 const DEF={useCache:true,organizeTypes:false,organizeChannel:false,extractSubtitles:false,downloadMetadata:false,downloadDirectory:'',autoBrowser:true,replayIntroOnReload:false};
@@ -312,7 +315,7 @@ async function health(){
     return true;
   }
   catch{
-    h.className='down';t.textContent='Backend offline. Run npm start';
+    h.className='down';t.textContent='Backend offline';
     if(backendOnline!==false){intro.classList.add('offline');showOfflineIntro()}
     backendOnline=false;
     return false;
@@ -326,23 +329,8 @@ $('#intro-retry').onclick=async()=>{
   const button=$('#intro-retry');
   button.disabled=true;button.textContent='Checking...';
   $('#intro-status').textContent='CHECKING BACKEND CONNECTION';
-  let connected=await health();
-  if(!connected&&!intro.hidden){
-    $('#intro-status').textContent='ASKING LOCAL SERVICE TO START DOWNLOADER';
-    try{
-      const response=await fetch(SUPERVISOR_API+'/api/start',{method:'POST',cache:'no-store'});
-      if(!response.ok)throw new Error('Supervisor unavailable');
-      $('#intro-status').textContent='STARTING DOWNLOADER...';
-      for(let attempt=0;attempt<20&&!intro.hidden;attempt++){
-        await new Promise(resolve=>setTimeout(resolve,500));
-        connected=await health();
-        if(connected)break;
-      }
-      if(!connected&&!intro.hidden)$('#intro-status').textContent='DOWNLOADER STARTING SLOWLY. TRY AGAIN IN A MOMENT.';
-    }catch{
-      if(!intro.hidden)$('#intro-status').textContent='RUN npm run setup-supervisor ONCE, THEN RETRY';
-    }
-  }
+  const connected=await health();
+  if(!connected&&!intro.hidden)$('#intro-status').textContent='STILL OFFLINE';
   if(!intro.hidden){button.disabled=false;button.textContent='Retry connection'}
 };
 $('#intro-continue').onclick=finishIntro;
@@ -439,7 +427,7 @@ function run(it){
     it.attempt=(it.attempt||0)+1;it.lastError='';it.status='active';it.msg=it.attempt>1?`Retrying download (${it.attempt-1}/${AUTO_RETRIES})`:'Connecting';render();
     const toBrowser=!!settings.autoBrowser; // fixed at start so the server and this page agree even if the box is toggled mid-download
     let ws;
-    try{ws=new WebSocket(WSU())}catch{it.status='error';it.msg='Can\u2019t reach the backend. Start it with npm start.';render();return done()}
+    try{ws=new WebSocket(WSU())}catch{it.status='error';it.msg='Can\u2019t reach the backend.';render();return done()}
     it.ws=ws;
     ws.onopen=()=>ws.send(JSON.stringify({url:it.url,type:it.type,ext:it.ext,quality:it.q,resolution:it.resolution,allowPlaylist:false,group:it.group&&{id:it.group.id,title:it.group.title},settings:{...settings,autoBrowser:toBrowser}}));
     ws.onmessage=e=>{
@@ -449,7 +437,7 @@ function run(it){
       else if(m.status==='error'){it.lastError=m.msg;it.msg=m.msg;render()}
       else if(m.msg!==undefined&&m.status!=='connected'){if(typeof m.percent==='number')it.pct=m.percent;it.msg=m.msg;scheduleProgressRender()}
     };
-    ws.onerror=()=>{if(it.status==='active'){it.lastError='Can\u2019t reach the backend. Start it with npm start.';ws.close()}};
+    ws.onerror=()=>{if(it.status==='active'){it.lastError='Can\u2019t reach the backend.';ws.close()}};
     ws.onclose=()=>{
       it.ws=null;
       if(it.status==='active'){

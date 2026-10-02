@@ -3,6 +3,210 @@
 /* ---------- installer: `node server.js --install` (runs after npm install) ---------- */
 if (process.argv.includes('--install')) {
   const fs = require('fs'), path = require('path'); // own requires: must work before dependencies are loaded
+  const runtimeTemplates = {
+    'supervisor.js': String.raw`'use strict';
+
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const http = require('node:http');
+const { spawn, execFileSync } = require('node:child_process');
+
+const HOST = '127.0.0.1';
+const SUPERVISOR_PORT = Number(process.env.SUPERVISOR_PORT) || 8001;
+const DOWNLOADER_PORT = Number(process.env.DOWNLOADER_PORT) || 8000;
+const SERVICE_NAME = 'download-that-stuff-supervisor.service';
+const DOWNLOADER_URL = __TICK__http://__INTERP__{HOST}:__INTERP__{DOWNLOADER_PORT}/api/health__TICK__;
+let downloader = null;
+let starting = null;
+
+function allowedOrigin(origin) {
+  return /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
+    || /^https:\/\/[a-z0-9-]+\.github\.io$/i.test(origin);
+}
+
+function setCors(req, res) {
+  const origin = req.headers.origin;
+  if (origin && !allowedOrigin(origin)) {
+    res.writeHead(403).end();
+    return false;
+  }
+  if (origin) res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Vary', 'Origin');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'content-type');
+  res.setHeader('Access-Control-Allow-Private-Network', 'true');
+  return true;
+}
+
+async function downloaderIsRunning() {
+  try {
+    const response = await fetch(DOWNLOADER_URL, { signal: AbortSignal.timeout(1000) });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+function startDownloader() {
+  if (starting) return starting;
+  starting = (async () => {
+    if (await downloaderIsRunning()) return { status: 'running' };
+    if (downloader) return { status: 'starting' };
+
+    const child = spawn(process.execPath, ['server.js'], {
+      cwd: __dirname,
+      env: { ...process.env, PORT: String(DOWNLOADER_PORT) },
+      stdio: 'ignore'
+    });
+    downloader = child;
+    child.once('error', error => {
+      console.error('Could not start downloader:', error.message);
+      if (downloader === child) downloader = null;
+    });
+    child.once('exit', () => {
+      if (downloader === child) downloader = null;
+    });
+    return { status: 'starting' };
+  })().finally(() => { starting = null; });
+  return starting;
+}
+
+function startServer() {
+  const server = http.createServer(async (req, res) => {
+    if (!setCors(req, res)) return;
+    if (req.method === 'OPTIONS') return res.writeHead(204).end();
+    if (req.method !== 'POST' || req.url !== '/api/start') return res.writeHead(404).end();
+
+    try {
+      const result = await startDownloader();
+      res.writeHead(202, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify(result));
+    } catch (error) {
+      console.error('Could not start downloader:', error.message);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'error' }));
+    }
+  });
+
+  server.listen(SUPERVISOR_PORT, HOST, () => {
+    console.log(__TICK__Downloader supervisor listening at http://__INTERP__{HOST}:__INTERP__{SUPERVISOR_PORT}__TICK__);
+  });
+  server.on('error', error => {
+    console.error('Downloader supervisor failed:', error.message);
+    process.exitCode = 1;
+  });
+  for (const signal of ['SIGINT', 'SIGTERM']) {
+    process.on(signal, () => {
+      if (downloader) downloader.kill('SIGTERM');
+      server.close(() => process.exit(0));
+      setTimeout(() => process.exit(0), 2000).unref();
+    });
+  }
+}
+
+function installService() {
+  const automaticInstall = process.env.npm_lifecycle_event === 'postinstall';
+  const skipAutomaticInstall = message => {
+    if (!automaticInstall) return false;
+    console.log(__TICK__[supervisor] __INTERP__{message} Skipping automatic setup.__TICK__);
+    return true;
+  };
+  if (process.platform !== 'linux') {
+    if (skipAutomaticInstall('Systemd user services are only available on Linux.')) return;
+    throw new Error('The user-service installer currently supports Linux only.');
+  }
+  try {
+    execFileSync('systemctl', ['--user', 'show-environment'], { stdio: 'ignore' });
+  } catch {
+    const message = 'No active systemd user session was found.';
+    if (skipAutomaticInstall(message)) return;
+    throw new Error(__TICK____INTERP__{message} Run this command from your logged-in desktop session.__TICK__);
+  }
+
+  const serviceDir = path.join(process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config'), 'systemd', 'user');
+  fs.mkdirSync(serviceDir, { recursive: true });
+  const quote = value => __TICK__"__INTERP__{String(value).replaceAll('\\', '\\\\').replaceAll('"', '\\"').replaceAll('%', '%%')}"__TICK__;
+  const escapePath = value => String(value).replaceAll('\\', '\\x5c').replaceAll(' ', '\\x20').replaceAll('%', '%%');
+  const unit = [
+    '[Unit]',
+    'Description=Download that Stuff local supervisor',
+    'After=default.target',
+    '',
+    '[Service]',
+    'Type=simple',
+    __TICK__WorkingDirectory=__INTERP__{escapePath(__dirname)}__TICK__,
+    __TICK__Environment=PATH=__INTERP__{quote(process.env.PATH || '/usr/bin:/bin')}__TICK__,
+    __TICK__ExecStart=__INTERP__{quote(process.execPath)} __INTERP__{quote(__filename)}__TICK__,
+    'Restart=on-failure',
+    'RestartSec=2',
+    '',
+    '[Install]',
+    'WantedBy=default.target',
+    ''
+  ].join('\n');
+  const unitPath = path.join(serviceDir, SERVICE_NAME);
+  fs.writeFileSync(unitPath, unit);
+  execFileSync('systemctl', ['--user', 'daemon-reload'], { stdio: 'inherit' });
+  execFileSync('systemctl', ['--user', 'enable', '--now', SERVICE_NAME], { stdio: 'inherit' });
+  console.log('Downloader supervisor installed and enabled for this user.');
+}
+
+if (process.argv.includes('--install')) {
+  try {
+    installService();
+  } catch (error) {
+    console.error(error.message);
+    process.exitCode = 1;
+  }
+} else {
+  startServer();
+}
+`.replaceAll('__TICK__', '`').replaceAll('__INTERP__', '$'),
+    'sw.js': String.raw`'use strict';
+
+const CACHE_NAME = 'download-that-stuff-shell-v1';
+const SHELL_URL = new URL('./', self.location.href).pathname;
+
+self.addEventListener('install', event => {
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE_NAME);
+    await cache.add(SHELL_URL);
+    await self.skipWaiting();
+  })());
+});
+
+self.addEventListener('activate', event => {
+  event.waitUntil((async () => {
+    const oldCaches = (await caches.keys()).filter(name => name.startsWith('download-that-stuff-shell-') && name !== CACHE_NAME);
+    await Promise.all(oldCaches.map(name => caches.delete(name)));
+    await self.clients.claim();
+  })());
+});
+
+self.addEventListener('fetch', event => {
+  const request = event.request;
+  if (request.method !== 'GET' || request.mode !== 'navigate') return;
+
+  event.respondWith((async () => {
+    try {
+      const response = await fetch(request);
+      if (response.ok) {
+        const cache = await caches.open(CACHE_NAME);
+        await cache.put(SHELL_URL, response.clone());
+      }
+      return response;
+    } catch {
+      return await caches.match(SHELL_URL) || Response.error();
+    }
+  })());
+});
+`
+  };
+  for (const [name, template] of Object.entries(runtimeTemplates)) {
+    fs.writeFileSync(path.join(__dirname, name), template);
+    console.log(`[install] Generated ${name}`);
+  }
   const installYtdlp = async () => {
     const { platform, arch } = process;
     const asset = platform === 'win32' ? (arch === 'ia32' ? 'yt-dlp_x86.exe' : 'yt-dlp.exe')
@@ -137,6 +341,7 @@ app.use((req, res, next) => {
 });
 app.use('/downloads', express.static(DL, { index: false }));
 app.get('/', (q, r) => r.sendFile(path.join(__dirname, 'index.html')));
+app.get('/sw.js', (q, r) => { r.set('Cache-Control', 'no-cache'); r.sendFile(path.join(__dirname, 'sw.js')); });
 app.get('/api/health', (q, r) => r.json({ status: 'ok', msg: 'Backend is running', tools }));
 
 app.get('/api/file', (req, res) => {

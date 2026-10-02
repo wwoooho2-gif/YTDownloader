@@ -3,9 +3,10 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "postinstall": "node server.js --install || exit 0",
+    "postinstall": "node server.js --install && node supervisor.js --install",
     "install-tools": "node server.js --install",
-    "start": "node server.js"
+    "start": "node server.js",
+    "setup-supervisor": "node supervisor.js --install"
   },
   "engines": {
     "node": ">=18"

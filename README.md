@@ -28,19 +28,30 @@ A web application for downloading video and audio content.
    npm install
    ```
 
-4. **Start the Application**
-   Start the development server:
+4. **Enable One-Click Reconnect (Linux)**
+   On Linux in a logged-in systemd user session, `npm install` installs and enables the user service automatically. Headless or non-Linux installs skip this step. If you installed dependencies before this feature was added, run:
+
+   ```bash
+   npm run setup-supervisor
+   ```
+
+   The supervisor runs on `127.0.0.1:8001` and starts the downloader when you press **Retry connection**. It is installed for your user and starts automatically with your session.
+
+5. **Start the Application Once**
+   Start the downloader and open the page while online so the browser can cache the app shell:
 
    ```bash
    npm start
    ```
 
-5. **Open in Browser**
+6. **Open in Browser**
    Open this address in your browser:
 
    ```text
    http://localhost:8000/
    ```
+
+After the first online visit, **Retry connection** can start the downloader if it is stopped. Without the supervisor, the button can only check whether the downloader is running.
 
 To update manually, get the latest source from the project repository.
 

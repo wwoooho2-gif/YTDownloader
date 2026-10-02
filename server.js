@@ -39,7 +39,7 @@ let FFMPEG = process.env.FFMPEG || '';
 if (!FFMPEG && process.platform === 'linux' && fs.existsSync('/usr/bin/ffmpeg')) FFMPEG = '/usr/bin/ffmpeg';
 if (!FFMPEG) { try { FFMPEG = require('ffmpeg-static') || ''; } catch {} }
 if (!FFMPEG || !fs.existsSync(FFMPEG)) FFMPEG = 'ffmpeg';
-const CONNS = Math.min(16, Math.max(1, +process.env.CONNECTIONS || 16)); // parallel connections per download
+const CONNS = Math.min(20, Math.max(1, +process.env.CONNECTIONS || 25)); // parallel connections per download
 const EMBED_VIDEO = process.env.EMBED_VIDEO === '1'; // thumbnail/tag embedding rewrites the whole video file: off = much faster
 const USE_ARIA2 = process.env.ARIA2 !== '0';                            // auto-used when aria2c is installed
 const MAX_JOBS = Math.max(1, +process.env.MAX_JOBS || 8); // parallel downloads
@@ -194,6 +194,27 @@ app.post('/api/clear_cache', (q, r) => { db.rows = {}; saveDb(); r.json({ status
 
 const plCache = new Map(); // url -> { t, playlist }: re-opening the same playlist skips a slow yt-dlp run
 const PL_TTL = 5 * 60 * 1000, PL_MAX = 20;
+const resolutionCache = new Map();
+app.post('/api/video_resolutions', (req, res) => {
+  const url = req.body.url;
+  if (!isUrl(url)) return res.status(400).json({ detail: 'That doesn\u2019t look like a link' });
+  const hit = resolutionCache.get(url);
+  if (hit && Date.now() - hit.t < PL_TTL) return res.json(hit.resolutions);
+  let gone = false;
+  const child = execFile(YTDLP, ['-J', '--no-playlist', '--skip-download', '--no-warnings', '--ignore-errors', '--', url], { maxBuffer: 1 << 26, timeout: 60000 }, (err, out) => {
+    if (gone) return;
+    if (err && err.code === 'ENOENT') return res.status(500).json({ detail: MISSING });
+    if (err && err.killed) return res.status(504).json({ detail: 'Timed out reading video formats' });
+    let info; try { info = JSON.parse(out); } catch { return res.status(400).json({ detail: 'Could not read video formats' }); }
+    const heights = (info.formats || []).filter(format => format.vcodec && format.vcodec !== 'none').map(format => Number(format.height) || 0);
+    const maxHeight = Math.max(Number(info.height) || 0, ...heights);
+    const resolutions = { maxHeight, supports4k: maxHeight >= 2160, supports8k: maxHeight >= 4320 };
+    resolutionCache.set(url, { t: Date.now(), resolutions });
+    if (resolutionCache.size > 100) resolutionCache.delete(resolutionCache.keys().next().value);
+    res.json(resolutions);
+  });
+  res.on('close', () => { if (!res.writableEnded) { gone = true; child.kill(); } });
+});
 app.post('/api/playlist_info', (req, res) => {
   const url = req.body.url;
   if (!isUrl(url)) return res.status(400).json({ detail: 'That doesn\u2019t look like a link' });
@@ -224,18 +245,21 @@ app.use((err, q, res, n) => res.status(err.status || 500).json({ detail: err.typ
 
 /* ---------- yt-dlp argument builder ---------- */
 function buildArgs({ url, type, ext, q, s, dir, recode, resolution = 'best' }) {
-  const fragmentConnections = Math.min(32, CONNS * 2);
+  const fragmentConnections = Math.min(64, CONNS * 4);
   const a = ['--quiet', '--no-simulate', '--progress', '--newline', '--no-playlist', '--no-warnings',
     ...(FFMPEG !== 'ffmpeg' ? ['--ffmpeg-location', FFMPEG] : []),
     '-N', String(fragmentConnections), '--http-chunk-size', '10M', '--buffer-size', '256K', '--no-mtime', '--retries', '5', '--fragment-retries', '5',
     '--progress-template', 'download:PROG|%(progress.downloaded_bytes)s|%(progress.total_bytes)s|%(progress.total_bytes_estimate)s|%(progress.speed)s|%(progress.eta)s',
     '--print', 'after_move:DONE\t%(filepath)s\t%(title)s\t%(thumbnail)s\t%(duration_string)s'];
-  if (USE_ARIA2 && tools.aria2c) // multi-connection downloader for plain HTTP streams; fragmented HLS/DASH stays native
-    a.push('--downloader', 'aria2c', '--downloader', 'dash,m3u8:native', '--downloader-args', `aria2c:-x ${Math.min(16, fragmentConnections)} -s ${Math.min(16, fragmentConnections)} -k 1M --min-split-size=1M --file-allocation=none`);
+  if (USE_ARIA2 && tools.aria2c) { // aria2 limits connections per server to 16
+    const ariaConnections = Math.min(16, fragmentConnections);
+    a.push('--downloader', 'aria2c', '--downloader', 'dash,m3u8:native', '--downloader-args', `aria2c:-x ${ariaConnections} -s ${ariaConnections} -k 1M --min-split-size=1M --file-allocation=none`);
+  }
   if (type === 'audio_only') {
-    // "fast": grab a small (<=128 kbps) stream when one exists and skip the cover-art download/embed pass
-    a.push('-f', q === 'fast' ? 'bestaudio[abr<=130]/bestaudio/best' : 'bestaudio/best', '-x', '--audio-format', ext === 'ogg' ? 'vorbis' : ext); // yt-dlp calls .ogg audio "vorbis"
-    if (!['wav', 'flac'].includes(ext)) a.push('--audio-quality', q === 'fast' ? '128' : q);
+    const lossless = ['wav', 'flac'].includes(ext);
+    const fastAudio = q === 'fast' && !lossless;
+    a.push('-f', fastAudio ? 'bestaudio[abr<=130]/bestaudio/best' : 'bestaudio/best', '-x', '--audio-format', ext === 'ogg' ? 'vorbis' : ext); // yt-dlp calls .ogg audio "vorbis"
+    if (!lossless) a.push('--audio-quality', fastAudio ? '128K' : `${q}K`);
   } else {
     const height = resolution === 'best' ? '' : `[height<=${resolution}]`;
     const f = type === 'video_only' ? `bestvideo[ext=${ext}]${height}/bestvideo${height}/best${height}`
@@ -320,7 +344,7 @@ wss.on('connection', (ws, req) => {
     const ext = String(req.ext || (type === 'audio_only' ? 'mp3' : 'mp4')).toLowerCase(), q = String(req.quality || '192');
     if (!/^[a-z0-9]{2,5}$/.test(ext) || !/^(\d+|best|fast)$/.test(q)) throw new Error('Bad format options.');
     const resolution = type === 'audio_only' ? 'best' : String(req.resolution || 'best');
-    if (!/^(best|2160|1440|1080|720|480|360)$/.test(resolution)) throw new Error('Bad resolution option.');
+    if (!/^(best|4320|2160|1440|1080|720|480|360)$/.test(resolution)) throw new Error('Bad resolution option.');
     const toBrowser = !!s.autoBrowser; // "browser only": stage in a private temp folder, hand the file to the browser, then delete it
     const gid = group && /^[\w-]{6,64}$/.test(String(group.id)) ? String(group.id) : null; // set when this download is part of a playlist
     const base0 = toBrowser ? TMP : normDir(s.downloadDirectory);

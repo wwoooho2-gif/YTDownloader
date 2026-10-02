@@ -99,6 +99,7 @@ details[open] summary::before{transform:rotate(90deg)}
 .items{list-style:none;margin:0;padding:0;display:grid;gap:10px}
 .it{display:grid;grid-template-columns:96px 1fr;gap:14px;padding:12px;border:2px solid var(--edge);border-radius:12px;background:var(--sf)}
 .th{width:96px;aspect-ratio:16/9;border-radius:8px;background:var(--sf2);object-fit:cover}
+.tt-row{display:flex;align-items:center;gap:9px;min-width:0}.select-file{flex:none}
 .tt{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .meta{font-size:13px;color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .meta.err{color:var(--bad)}
@@ -106,8 +107,9 @@ details[open] summary::before{transform:rotate(90deg)}
 .bar b{display:block;height:100%;background:var(--ac);width:0;transition:width .35s cubic-bezier(.22,1,.36,1)}
 .acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 .empty{color:var(--mute);padding:24px 0}
-.head{display:flex;justify-content:space-between;align-items:center;margin:0 0 10px}
+.head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:0 0 10px}
 .head h2{font-size:15px;margin:0;color:var(--gold)}
+.head-actions{display:flex;justify-content:flex-end;align-items:center;flex-wrap:wrap;gap:8px}
 /* smooth menus */
 .btn,.seg button,select,.field,.go,#health{transition:background-color .22s cubic-bezier(.22,1,.36,1),border-color .22s cubic-bezier(.22,1,.36,1),color .22s cubic-bezier(.22,1,.36,1),filter .22s cubic-bezier(.22,1,.36,1),box-shadow .22s cubic-bezier(.22,1,.36,1),opacity .22s cubic-bezier(.22,1,.36,1),transform .22s cubic-bezier(.22,1,.36,1)}
 details.closing summary::before{transform:none}
@@ -166,7 +168,7 @@ details.closing summary::before{transform:none}
   <select id="ext" aria-label="Format"></select>
   <select id="resolution" aria-label="Maximum resolution">
     <option value="best" selected>Best available</option>
-    <option value="2160">Up to 2160p</option><option value="1440">Up to 1440p</option>
+    <option value="1440">Up to 1440p</option>
     <option value="1080">Up to 1080p</option><option value="720">Up to 720p</option>
     <option value="480">Up to 480p</option><option value="360">Up to 360p</option>
   </select>
@@ -199,7 +201,7 @@ details.closing summary::before{transform:none}
 
 <section id="pl" aria-live="polite"></section>
 
-<div class="head"><h2>Downloads</h2><button class="btn" id="clrlist" type="button">Clear list</button></div>
+<div class="head"><h2>Downloads</h2><div class="head-actions"><label class="chk" id="selectAllLabel" hidden><input type="checkbox" id="selectAll"> Select all</label><button class="btn bad" id="deleteSelected" type="button" hidden disabled>Delete selected</button><button class="btn" id="clrlist" type="button">Clear list</button></div></div>
 <ul class="items" id="list"></ul>
 <div class="empty" id="empty">Nothing on the line yet. Paste a link above to start.</div>
 </div>
@@ -246,6 +248,33 @@ const HOSTED=/\.github\.io$/.test(location.hostname)||!location.protocol.startsW
 let API=((()=>{try{return localStorage.getItem('dl.backend')}catch{}})()||(HOSTED?'http://localhost:8000':location.origin)).replace(/\/+$/,'');
 const WSU=()=>API.replace(/^http/,'ws')+'/ws/download';
 const EXTS={video_audio:['mp4','webm','mkv'],video_only:['mp4','webm','mkv'],audio_only:['mp3','m4a','ogg','opus','flac','wav']};
+function setResolutionOptions(maxHeight=0){
+  const select=$('#resolution'),previous=select.value;
+  const options=[
+    ['best','Best available'],
+    ...(maxHeight>=4320?[['4320','Up to 8K (4320p)']]:[]),
+    ...(maxHeight>=2160?[['2160','Up to 4K (2160p)']]:[]),
+    ['1440','Up to 1440p'],['1080','Up to 1080p'],['720','Up to 720p'],['480','Up to 480p'],['360','Up to 360p']
+  ];
+  select.innerHTML=options.map(([value,label])=>`<option value="${value}">${label}</option>`).join('');
+  if(options.some(([value])=>value===previous))select.value=previous;
+}
+let resolutionLookupTimer=null,resolutionLookupController=null;
+function scheduleResolutionLookup(){
+  clearTimeout(resolutionLookupTimer);resolutionLookupController?.abort();
+  setResolutionOptions();
+  const url=$('#url').value.trim();
+  try{if(!['http:','https:'].includes(new URL(url).protocol))return}catch{return}
+  resolutionLookupTimer=setTimeout(async()=>{
+    const controller=resolutionLookupController=new AbortController();
+    try{
+      const response=await fetch(API+'/api/video_resolutions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url}),signal:controller.signal});
+      if(!response.ok)throw new Error('Could not inspect video formats');
+      const result=await response.json();
+      if($('#url').value.trim()===url)setResolutionOptions(Number(result.maxHeight)||0);
+    }catch{}
+  },600);
+}
 const DEF={useCache:true,organizeTypes:false,organizeChannel:false,extractSubtitles:false,downloadMetadata:false,downloadDirectory:'',autoBrowser:true,replayIntroOnReload:false};
 const load=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}};
 const save=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}};
@@ -255,6 +284,7 @@ const post=(p,b)=>fetch(API+p,{method:'POST',headers:{'Content-Type':'applicatio
 let settings={...DEF,...load('dl.settings',{})};
 if(load('dl.settingsV',1)<3){Object.assign(settings,{organizeTypes:false,organizeChannel:false,extractSubtitles:false,downloadMetadata:false,useCache:true,autoBrowser:true});save('dl.settings',settings);save('dl.settingsV',3)} // one-time: apply the new defaults over older saved values (download folder is kept)
 if(load('dl.settingsV',3)<5){delete settings.fastDownload;save('dl.settings',settings);save('dl.settingsV',5)}
+if(settings.fastMode!==undefined){delete settings.fastMode;save('dl.settings',settings)}
 let type='video_audio';
 let items=load('dl.history',[]).map(i=>({...i,status:'done'}));
 const PARALLEL=8,AUTO_RETRIES=2;let running=0; // matches the server's default MAX_JOBS
@@ -281,7 +311,7 @@ function scheduleProgressRender(){
 const flags=['organizeTypes','organizeChannel','extractSubtitles','downloadMetadata','useCache','autoBrowser','replayIntroOnReload'];
 flags.forEach(k=>{const el=$('#'+k);el.checked=!!settings[k];el.onchange=()=>{settings[k]=el.checked;save('dl.settings',settings)}});
 $('#dir').value=settings.downloadDirectory;$('#dir').onchange=e=>{settings.downloadDirectory=e.target.value.trim();save('dl.settings',settings)};
-$('#backend').value=API;$('#backend').onchange=e=>{API=e.target.value.trim().replace(/\/+$/,'')||API;try{localStorage.setItem('dl.backend',API)}catch{}health()};
+$('#backend').value=API;$('#backend').onchange=e=>{API=e.target.value.trim().replace(/\/+$/,'')||API;try{localStorage.setItem('dl.backend',API)}catch{}health();scheduleResolutionLookup()};
 $('#browse').onclick=async()=>{
   try{const r=await post('/api/browse_directory');
     if(r.status==='ok'){settings.downloadDirectory=r.directory;$('#dir').value=r.directory;save('dl.settings',settings)}
@@ -299,6 +329,7 @@ function setType(t){
 }
 document.querySelectorAll('#type button').forEach(b=>b.onclick=()=>setType(b.dataset.v));
 setType('video_audio');
+$('#url').addEventListener('input',scheduleResolutionLookup);
 
 /* ---------- health ---------- */
 let backendOnline=null,healthRequest=null;
@@ -453,12 +484,21 @@ function run(it){
 }
 
 /* ---------- render ---------- */
+const canBulkDelete=i=>i.status==='done'&&i.file&&!i.browserOnly&&!i.missing&&!i.deferred;
 function render(){
   const act=items.filter(i=>i.status==='active');
   $('#f').style.setProperty('--p',(act.length?act.reduce((t,i)=>t+i.pct,0)/act.length:0)+'%');
   $('#empty').style.display=items.length?'none':'block';
+  const deletable=items.filter(canBulkDelete),selected=deletable.filter(i=>i.selected).length;
+  $('#selectAllLabel').hidden=!deletable.length;
+  $('#selectAll').checked=deletable.length>0&&selected===deletable.length;
+  $('#selectAll').indeterminate=selected>0&&selected<deletable.length;
+  $('#deleteSelected').hidden=!deletable.length;
+  $('#deleteSelected').disabled=!selected;
+  $('#deleteSelected').textContent=`Delete selected (${selected})`;
   $('#list').innerHTML=items.map(i=>{
     const thumb=i.file&&i.file.thumbnail?`<img class="th" src="${esc(i.file.thumbnail)}" alt="" loading="lazy">`:`<div class="th"></div>`;
+    const selectBox=canBulkDelete(i)?`<input class="select-file" type="checkbox" data-select="${i.id}" aria-label="Select ${esc(i.title)}" ${i.selected?'checked':''}>`:'';
     let meta,acts='';
     if(i.status==='done'){
       meta=i.deferred?'Done. Will download as one .zip when the whole playlist finishes':i.browserOnly?'Sent to your browser':i.missing?'File was moved or deleted':esc((i.file.duration||'')+(i.type==='audio_only'?' \u00b7 audio':' \u00b7 video'));
@@ -479,10 +519,32 @@ function render(){
       meta='Waiting for earlier downloads';acts=`<button class="btn" data-a="rm" data-id="${i.id}">Cancel</button>`;
     }else {meta=esc(i.msg);acts=`<button class="btn bad" data-a="cancel" data-id="${i.id}">Cancel download</button>`}
     const bar=i.status==='active'?`<div class="bar"><b style="width:${i.pct}%"></b></div>`:'';
-    return `<li class="it" data-id="${i.id}">${thumb}<div style="min-width:0"><div class="tt" title="${esc(i.title)}">${esc(i.title)}</div>
+    return `<li class="it" data-id="${i.id}">${thumb}<div style="min-width:0"><div class="tt-row">${selectBox}<div class="tt" title="${esc(i.title)}">${esc(i.title)}</div></div>
       <div class="meta" data-status>${meta}</div>${pvErr&&pvErr.id===i.id?`<div class="meta err">${esc(pvErr.msg)}</div>`:''}${bar}<div class="acts">${acts}</div></div></li>`;
   }).join('');
 }
+$('#list').onchange=e=>{
+  const checkbox=e.target.closest('input[data-select]');if(!checkbox)return;
+  const it=items.find(i=>String(i.id)===checkbox.dataset.select);
+  if(it)it.selected=checkbox.checked;
+  render();
+};
+$('#selectAll').onchange=()=>{items.filter(canBulkDelete).forEach(i=>{i.selected=$('#selectAll').checked});render()};
+$('#deleteSelected').onclick=async()=>{
+  const selected=items.filter(i=>canBulkDelete(i)&&i.selected);
+  if(!selected.length||!confirm(`Delete ${selected.length} selected files from disk?`))return;
+  const failed=[];
+  $('#deleteSelected').disabled=true;
+  for(const it of selected){
+    try{
+      const result=await post('/api/delete_file',{filepath:it.file.url});
+      if(result.status!=='ok')throw new Error(result.detail||'Delete failed');
+      items=items.filter(item=>item!==it);
+    }catch{failed.push(it)}
+  }
+  persist();render();
+  if(failed.length)alert(`Could not delete ${failed.length} selected file${failed.length===1?'':'s'}.`);
+};
 $('#list').onclick=async e=>{
   const b=e.target.closest('button[data-a]');if(!b)return;
   const it=items.find(i=>String(i.id)===b.dataset.id);if(!it)return;

@@ -2,6 +2,8 @@
 
 A web application for downloading video and audio content.
 
+Video downloads support resolution limits up to 4K and 8K (4320p), when available from the source.
+
 ---
 
 ## Screenshots
